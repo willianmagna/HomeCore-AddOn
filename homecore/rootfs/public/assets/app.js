@@ -79,6 +79,7 @@
     }).join('');
     return `
       <div class="brand">
+        <img class="brand-logo" src="/hc-logo.png" alt="HomeCore" />
         <div class="brand-text">HOMECORE</div>
       </div>
       <nav class="nav">

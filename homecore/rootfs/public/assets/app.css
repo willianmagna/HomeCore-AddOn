@@ -519,6 +519,11 @@ body > .app-main {
   color: white; border-radius: var(--r-md);
   font-weight: 700; font-size: 15px; flex-shrink: 0;
 }
+.app-sidebar .brand-logo {
+  width: 32px; height: 32px;
+  border-radius: var(--r-md);
+  flex-shrink: 0; object-fit: contain;
+}
 .app-sidebar .brand-text {
   font-weight: 600; letter-spacing: 0.14em;
   font-size: 14px; color: var(--text);
