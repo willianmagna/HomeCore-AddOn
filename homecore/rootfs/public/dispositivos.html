@@ -1,0 +1,1020 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>HomeCore — Dispositivos</title>
+<base href="./" />
+<link rel="stylesheet" href="assets/app.css" />
+<link rel="stylesheet" href="assets/wifi.css" />
+<script src="assets/lucide.min.js"></script>
+<script src="assets/app.js"></script>
+</head>
+<body>
+<header class="app-header"></header>
+<main class="app-main">
+  <div id="results">
+    <div class="empty-state" id="empty">
+      <i data-lucide="wifi-off" class="icon"></i>
+      <div>Nenhum módulo Wi-Fi incluído.</div>
+      <div style="margin-top:6px;font-size:13px">
+        Use a aba <strong>Buscar</strong> pra varrer a rede e incluir Sonoff,
+        ou configure as credenciais Tuya Cloud aqui no canto superior direito.
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- Cloud setup modal (Tuya) -->
+<div class="modal-backdrop" id="setup-modal">
+  <div class="modal-card">
+    <h2>Tuya Cloud — credenciais</h2>
+    <p class="hint">Necessárias só pra baixar a <code>localKey</code> dos devices Tuya. Salvas no servidor; controle continua 100% local depois.</p>
+    <form id="form-setup">
+      <div class="field" style="margin-bottom:12px">
+        <label for="t-id">Access ID</label>
+        <input class="input" type="text" id="t-id" name="access_id" autocomplete="off" required>
+      </div>
+      <div class="field" style="margin-bottom:12px">
+        <label for="t-secret">Access Secret</label>
+        <input class="input" type="password" id="t-secret" name="access_secret" autocomplete="off" required>
+      </div>
+      <div class="field" style="margin-bottom:12px">
+        <label for="t-region">Data Center</label>
+        <select class="select" id="t-region" name="region">
+          <option value="us">Western America (us)</option>
+          <option value="eu">Central Europe (eu)</option>
+          <option value="cn">China (cn)</option>
+          <option value="in">India (in)</option>
+        </select>
+      </div>
+      <div class="actions">
+        <button type="button" class="btn btn-ghost" id="btn-setup-cancel">Cancelar</button>
+        <button type="submit" class="btn btn-primary" id="btn-setup-save">Validar e salvar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal Sonoff (single-channel) -->
+<div class="modal-backdrop" id="modal-sonoff">
+  <div class="modal-card modal-wide">
+    <h2 id="ms-title">Sonoff</h2>
+    <p class="hint" id="ms-subtitle">—</p>
+    <form id="form-sonoff">
+      <div class="modal-cols">
+        <div class="modal-col-left">
+          <div class="field-grid">
+            <div class="field full">
+              <label for="ms-name">Nome</label>
+              <input class="input" type="text" id="ms-name" name="name" maxlength="80">
+            </div>
+            <div class="field full">
+              <label>Publicar no Home Assistant</label>
+              <div class="mqtt-toggle-wrap">
+                <label class="sw" title="MQTT Discovery">
+                  <input type="checkbox" id="ms-mqtt"><span class="slider"></span>
+                </label>
+                <span id="ms-mqtt-status" class="signal-label">desligado</span>
+              </div>
+            </div>
+          </div>
+          <div class="tech-details">
+            <h4>Detalhes técnicos</h4>
+            <div class="info-row"><span class="k">Device ID</span><span class="v" id="ms-id">—</span></div>
+            <div class="info-row"><span class="k">Modelo</span><span class="v" id="ms-model">—</span></div>
+            <div class="info-row"><span class="k">IP</span><span class="v" id="ms-ip">—</span></div>
+            <div class="info-row"><span class="k">MAC</span><span class="v" id="ms-mac">—</span></div>
+            <div class="info-row"><span class="k">Firmware</span><span class="v" id="ms-fw">—</span></div>
+            <div class="info-row"><span class="k">RSSI</span><span class="v" id="ms-rssi">—</span></div>
+            <div class="info-row"><span class="k">SSID</span><span class="v" id="ms-ssid">—</span></div>
+          </div>
+        </div>
+        <div class="modal-col-right">
+          <h4 class="col-heading">Configuração</h4>
+          <section class="channel-section" id="ms-channel">
+            <div class="channel-header">
+              <div class="channel-title">
+                <span class="ch-tag">SO</span>
+                <span>Saída única</span>
+              </div>
+              <button type="button" class="btn btn-ghost btn-sm" id="ms-identify">
+                <i data-lucide="zap" class="icon"></i><span id="ms-identify-label">Identificar</span>
+              </button>
+            </div>
+            <div class="channel-grid">
+              <div class="field">
+                <label>Tipo</label>
+                <select class="select" id="ms-cat" name="ha_category"></select>
+              </div>
+              <div class="field">
+                <label>Cômodo</label>
+                <select class="select" id="ms-room" name="room_id"></select>
+              </div>
+              <div class="field full">
+                <label>HA object ID</label>
+                <input class="input" type="text" id="ms-objid" name="object_id" maxlength="80" placeholder="auto a partir do nome">
+                <div class="ha-preview">→ <strong class="ha-pv-cat">switch</strong>.<strong class="ha-pv-id">auto</strong></div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-danger" id="ms-remove">
+          <i data-lucide="trash-2" class="icon"></i> Remover dispositivo
+        </button>
+        <div class="footer-actions">
+          <button type="button" class="btn btn-ghost" id="ms-cancel">Fechar</button>
+          <button type="submit" class="btn btn-primary">Salvar</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal Tuya (multi-channel) -->
+<div class="modal-backdrop" id="modal-tuya">
+  <div class="modal-card modal-wide">
+    <h2 id="mt-title">Tuya</h2>
+    <p class="hint" id="mt-subtitle">—</p>
+    <form id="form-tuya">
+      <div class="modal-cols">
+        <div class="modal-col-left">
+          <div class="field-grid">
+            <div class="field full">
+              <label for="mt-name">Nome do módulo (físico)</label>
+              <input class="input" type="text" id="mt-name" name="name" maxlength="80" placeholder="Ex: Tomada da sala">
+            </div>
+            <div class="field full">
+              <label>Publicar no Home Assistant</label>
+              <div class="mqtt-toggle-wrap">
+                <label class="sw" title="MQTT Discovery">
+                  <input type="checkbox" id="mt-mqtt"><span class="slider"></span>
+                </label>
+                <span id="mt-mqtt-status" class="signal-label">desligado</span>
+              </div>
+            </div>
+          </div>
+          <div class="tech-details">
+            <h4>Detalhes técnicos</h4>
+            <div class="info-row"><span class="k">Device ID</span><span class="v" id="mt-id">—</span></div>
+            <div class="info-row"><span class="k">Product ID</span><span class="v" id="mt-product">—</span></div>
+            <div class="info-row"><span class="k">Categoria Tuya</span><span class="v" id="mt-tuya-cat">—</span></div>
+            <div class="info-row"><span class="k">IP</span><span class="v" id="mt-ip">—</span></div>
+            <div class="info-row"><span class="k">Protocolo</span><span class="v" id="mt-proto">—</span></div>
+          </div>
+        </div>
+        <div class="modal-col-right">
+          <h4 class="col-heading">Saídas</h4>
+          <div id="mt-channels"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-danger" id="mt-remove">
+          <i data-lucide="trash-2" class="icon"></i> Remover dispositivo
+        </button>
+        <div class="footer-actions">
+          <button type="button" class="btn btn-ghost" id="mt-cancel">Fechar</button>
+          <button type="submit" class="btn btn-primary">Salvar</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+HomeCore.mountHeader({ active: 'wifi-devices' });
+
+(() => {
+  const results = document.getElementById('results');
+  const empty = document.getElementById('empty');
+  const toast = document.getElementById('toast');
+  const modalSonoff = document.getElementById('modal-sonoff');
+  const modalTuya = document.getElementById('modal-tuya');
+  const setupModal = document.getElementById('setup-modal');
+  const formSonoff = document.getElementById('form-sonoff');
+  const formTuya = document.getElementById('form-tuya');
+  const formSetup = document.getElementById('form-setup');
+
+  const escapeHtml = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const showToast = (msg, kind='ok') => {
+    toast.className = 'toast show' + (kind==='warn'?' warn':kind==='err'?' err':'');
+    toast.textContent = msg;
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(()=>toast.classList.remove('show'), 3500);
+  };
+
+  function slugify(s) {
+    return (s || '').toString().toLowerCase()
+      .normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  }
+
+  const HA_CATEGORIES = [
+    { value: 'switch',  label: 'Switch' },
+    { value: 'light',   label: 'Light' },
+    { value: 'outlet',  label: 'Outlet (tomada)' },
+    { value: 'fan',     label: 'Fan' },
+    { value: 'cover',   label: 'Cover (cortina)' },
+    { value: 'valve',   label: 'Valve' },
+    { value: 'siren',   label: 'Siren' },
+    { value: 'other',   label: 'Other' },
+  ];
+
+  // ── State ──────────────────────────────────────────────────────────
+  const devices = new Map();
+  const cards = new Map();
+  let cachedRooms = [];
+  let cachedFloors = [];
+  let cloudConfigured = false;
+  let modalDeviceId = null;
+
+  async function loadRoomsCache() {
+    if (cachedRooms.length) return cachedRooms;
+    try {
+      const r = await fetch('/api/areas');
+      const data = await r.json();
+      cachedRooms = data.rooms || [];
+      cachedFloors = data.floors || [];
+    } catch { cachedRooms = []; cachedFloors = []; }
+    return cachedRooms;
+  }
+
+  // Monta <option>s agrupados por andar (<optgroup>). "Sem andar" entra por último.
+  function roomOptionsHtml(selectedId) {
+    const floors = cachedFloors.slice().sort((a, b) => (a.level ?? 0) - (b.level ?? 0));
+    const byFloor = new Map();
+    const orphans = [];
+    for (const r of cachedRooms) {
+      if (r.floorId && floors.find((f) => f.id === r.floorId)) {
+        const arr = byFloor.get(r.floorId) || [];
+        arr.push(r);
+        byFloor.set(r.floorId, arr);
+      } else {
+        orphans.push(r);
+      }
+    }
+    const opt = (r) =>
+      `<option value="${r.id}" ${selectedId === r.id ? 'selected' : ''}>${escapeHtml(r.name)}</option>`;
+    const parts = [`<option value="">— sem cômodo —</option>`];
+    for (const f of floors) {
+      const list = byFloor.get(f.id);
+      if (!list || !list.length) continue;
+      parts.push(`<optgroup label="${escapeHtml(f.name)}">${list.map(opt).join('')}</optgroup>`);
+    }
+    if (orphans.length) {
+      parts.push(`<optgroup label="Sem andar">${orphans.map(opt).join('')}</optgroup>`);
+    }
+    return parts.join('');
+  }
+
+  function rssiQuality(rssi) {
+    if (rssi === undefined || rssi === null) return null;
+    const pct = Math.max(0, Math.min(100, 2 * (rssi + 100)));
+    let bars, label;
+    if (rssi >= -55)      { bars = 4; label = 'Excelente'; }
+    else if (rssi >= -65) { bars = 3; label = 'Bom'; }
+    else if (rssi >= -75) { bars = 2; label = 'Razoável'; }
+    else                  { bars = 1; label = 'Fraco'; }
+    return { rssi, pct: Math.round(pct), bars, label };
+  }
+  function renderSignal(rssi) {
+    const q = rssiQuality(rssi);
+    if (!q) return '—';
+    return `<span class="signal">
+      <span class="signal-bars" data-quality="${q.bars}"><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span></span>
+      ${q.rssi} dBm
+      <span class="signal-label">${q.label} · ${q.pct}%</span>
+    </span>`;
+  }
+
+  // ── Header actions (Tuya cloud config) ─────────────────────────────
+  async function checkCloudStatus() {
+    try {
+      const res = await fetch('/api/tuya/cloud/status');
+      const data = await res.json();
+      cloudConfigured = !!data.configured;
+    } catch { cloudConfigured = false; }
+    ensureHeaderActions();
+  }
+
+  function ensureHeaderActions() {
+    const actions = cloudConfigured
+      ? `<button id="btn-import" class="btn btn-primary"><i data-lucide="cloud-download" class="icon"></i>Importar Tuya</button>
+         <button id="btn-setup" class="btn btn-ghost" title="Reconfigurar credenciais Tuya"><i data-lucide="settings" class="icon"></i></button>`
+      : `<button id="btn-setup" class="btn btn-primary"><i data-lucide="key-round" class="icon"></i>Tuya Cloud</button>`;
+    HomeCore.mountHeader({ active: 'wifi-devices', actions });
+    setTimeout(() => {
+      document.getElementById('btn-setup')?.addEventListener('click', () => setupModal.classList.add('show'));
+      document.getElementById('btn-import')?.addEventListener('click', doTuyaImport);
+    }, 0);
+  }
+
+  // ── Detecção / estado on/off ───────────────────────────────────────
+  function isOnVal(v) { return v === true || v === 'true' || v === 1 || v === 'on'; }
+
+  function detectTuyaChannels(d) {
+    const dps = d.dps || {};
+    const ch = [];
+    for (let i = 1; i <= 6; i++) {
+      if (typeof dps[i] === 'boolean') ch.push(i);
+    }
+    if (!ch.length) ch.push(1);
+    return ch;
+  }
+
+  function statusDot(online, ts) {
+    if (online === true) return { cls: 'online', label: 'online' };
+    if (ts) {
+      const age = (Date.now()/1000) - ts;
+      if (age < 90) return { cls: 'online', label: 'online' };
+      if (age < 600) return { cls: 'stale', label: `${Math.round(age)}s` };
+    }
+    return { cls: 'offline', label: online === false ? 'offline' : 'sem dados' };
+  }
+
+  // ── Card render ─────────────────────────────────────────────────────
+  function renderCardBody(d, visibleDps = null, roomName = '') {
+    if (d.vendor === 'sonoff') return renderSonoffCardBody(d, roomName);
+    return renderTuyaCardBody(d, visibleDps, roomName);
+  }
+
+  function renderSonoffCardBody(d, roomName) {
+    const status = statusDot(d.is_on !== undefined, d.last_seen_ts);
+    const isOn = d.is_on === true;
+    const cat = d.ha_category || 'switch';
+    const indeterminate = d.is_on === undefined || d.is_on === null;
+    const baseName = d.name || d.deviceid;
+    const fullName = roomName ? `[${roomName}] ${baseName}` : baseName;
+    return `
+      <div class="info">
+        <div class="name">${escapeHtml(fullName)}</div>
+        <div class="meta">
+          <span><span class="status-dot ${status.cls}"></span>${status.label}</span>
+          <span class="cat-badge">${cat}</span>
+          ${d.mqtt_active ? '<span class="ha-badge">HA</span>' : ''}
+          ${d.ip ? `<span class="ip">${escapeHtml(d.ip)}</span>` : ''}
+          <span class="cat-badge vendor-tag">Sonoff</span>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="icon-btn sm settings-btn" title="configurações">
+          <i data-lucide="settings-2" class="icon"></i>
+        </button>
+      </div>
+      <div class="channels">
+        <label class="channel">
+          <span class="ch-label">S1</span>
+          <span class="sw">
+            <input type="checkbox" class="sw-input" data-vendor="sonoff" ${isOn?'checked':''} ${indeterminate ? 'data-indeterminate="1"' : ''}>
+            <span class="slider"></span>
+          </span>
+        </label>
+      </div>
+    `;
+  }
+
+  function renderTuyaCardBody(d, visibleDps, roomName) {
+    const status = statusDot(d.online, d.last_seen_ts);
+    const allCh = detectTuyaChannels(d);
+    const channels = visibleDps && visibleDps.length ? visibleDps : allCh;
+    const isOn = channels.some((dp) => isOnVal((d.dps || {})[dp]));
+    const cat = d.ha_category || 'switch';
+    const isMulti = channels.length > 1;
+    const indeterminate = d.online === undefined && d.dps === undefined;
+    const baseName = d.name || d.deviceid;
+    const fullName = roomName ? `[${roomName}] ${baseName}` : baseName;
+
+    const channelsHtml = `<div class="channels">
+      ${channels.map((dp) => {
+        const on = isOnVal((d.dps || {})[dp]);
+        return `<label class="channel">
+          <span class="ch-label">S${dp}</span>
+          <span class="sw">
+            <input type="checkbox" class="sw-input" data-vendor="tuya" data-dp="${dp}" ${on?'checked':''}>
+            <span class="slider"></span>
+          </span>
+        </label>`;
+      }).join('')}
+    </div>`;
+
+    return `
+      <div class="info">
+        <div class="name">${escapeHtml(fullName)}</div>
+        <div class="meta">
+          <span><span class="status-dot ${status.cls}"></span>${status.label}</span>
+          <span class="cat-badge">${cat}</span>
+          ${d.mqtt_active ? '<span class="ha-badge">HA</span>' : ''}
+          ${d.ip ? `<span class="ip">${escapeHtml(d.ip)}</span>` : ''}
+          <span class="cat-badge vendor-tag">Tuya</span>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="icon-btn sm settings-btn" title="configurações">
+          <i data-lucide="settings-2" class="icon"></i>
+        </button>
+      </div>
+      ${channelsHtml}
+    `;
+  }
+
+  function refreshCard(cardKey) {
+    const card = cards.get(cardKey);
+    if (!card) return;
+    const deviceid = card.dataset.deviceid;
+    const d = devices.get(deviceid);
+    if (!d) return;
+    const visibleDps = card.dataset.dps ? card.dataset.dps.split(',').map(Number) : null;
+    const roomName = card.dataset.roomName || '';
+    card.innerHTML = renderCardBody(d, visibleDps, roomName);
+    card.querySelectorAll('.sw-input').forEach((sw) => {
+      if (sw.dataset.indeterminate) sw.indeterminate = true;
+      sw.addEventListener('change', () => doSwitch(deviceid, sw));
+    });
+    card.querySelector('.settings-btn').addEventListener('click', () => openSettings(deviceid));
+    HomeCore.refreshIcons();
+  }
+
+  function refreshDevice(deviceid) {
+    for (const [key, card] of cards.entries()) {
+      if (card.dataset.deviceid === deviceid) refreshCard(key);
+    }
+  }
+
+  // ── Agrupa por cômodo (Sonoff: room_id device-level; Tuya: per-channel) ──
+  function groupDevicesByRoom(list, rooms) {
+    const groups = new Map();
+    for (const d of list) {
+      if (d.vendor === 'sonoff') {
+        const rid = d.room_id || null;
+        const key = rid || 'none';
+        const arr = groups.get(key) || [];
+        arr.push({ device: d, visibleDps: null });
+        groups.set(key, arr);
+      } else {
+        const cfg = d.channels_config || {};
+        const dpsByRoom = new Map();
+        const allCh = detectTuyaChannels(d);
+        for (const dp of allCh) {
+          const rid = cfg[String(dp)]?.room_id || null;
+          const arr = dpsByRoom.get(rid) || [];
+          arr.push(dp);
+          dpsByRoom.set(rid, arr);
+        }
+        for (const [rid, dps] of dpsByRoom.entries()) {
+          const key = rid || 'none';
+          const arr = groups.get(key) || [];
+          arr.push({ device: d, visibleDps: dps });
+          groups.set(key, arr);
+        }
+      }
+    }
+    const ordered = [];
+    for (const r of rooms) {
+      if (groups.has(r.id)) ordered.push({ roomId: r.id, room: r, items: groups.get(r.id) });
+    }
+    if (groups.has('none')) ordered.push({ roomId: null, room: null, items: groups.get('none') });
+    return ordered;
+  }
+
+  async function renderAll(list) {
+    if (!list.length) {
+      results.innerHTML = '';
+      results.appendChild(empty);
+      empty.style.display = '';
+      cards.clear();
+      return;
+    }
+    const rooms = await loadRoomsCache();
+    const groups = groupDevicesByRoom(list, rooms);
+    const seen = new Set();
+    results.innerHTML = '';
+    empty.style.display = 'none';
+
+    for (const grp of groups) {
+      const section = document.createElement('section');
+      section.className = 'room-group';
+      const total = grp.items.length;
+      section.innerHTML = `
+        <div class="room-header">
+          <h3>${grp.room ? escapeHtml(grp.room.name) : 'Sem cômodo'}</h3>
+          <span class="count">${total} ${total === 1 ? 'módulo' : 'módulos'}</span>
+        </div>
+        <div class="room-grid"></div>
+      `;
+      const grid = section.querySelector('.room-grid');
+      for (const { device: d, visibleDps } of grp.items) {
+        const cardKey = `${d.deviceid}@${grp.roomId || 'none'}`;
+        seen.add(cardKey);
+        devices.set(d.deviceid, d);
+        let card = cards.get(cardKey);
+        if (!card) {
+          card = document.createElement('div');
+          card.className = 'card dev-card';
+          card.dataset.deviceid = d.deviceid;
+          cards.set(cardKey, card);
+        }
+        card.dataset.dps = visibleDps ? visibleDps.join(',') : '';
+        card.dataset.roomName = grp.room ? grp.room.name : '';
+        grid.appendChild(card);
+        refreshCard(cardKey);
+      }
+      results.appendChild(section);
+    }
+
+    for (const [key, el] of [...cards.entries()]) {
+      if (!seen.has(key)) { el.remove?.(); cards.delete(key); }
+    }
+    const liveIds = new Set(list.map((d) => d.deviceid));
+    for (const did of [...devices.keys()]) {
+      if (!liveIds.has(did)) devices.delete(did);
+    }
+  }
+
+  async function loadDevices() {
+    try {
+      const [wifi, tuya] = await Promise.all([
+        fetch('/api/wifi/devices').then(r => r.json()).catch(() => ({devices:[]})),
+        fetch('/api/tuya/devices').then(r => r.json()).catch(() => ({devices:[]})),
+      ]);
+      const all = [];
+      for (const d of (wifi.devices || [])) all.push({ ...d, vendor: 'sonoff' });
+      for (const d of (tuya.devices || [])) all.push({ ...d, vendor: 'tuya' });
+      await renderAll(all);
+    } catch (e) {
+      showToast(`Erro ao listar: ${e.message}`, 'err');
+    }
+  }
+
+  // ── Toggle/switch — vendor aware ───────────────────────────────────
+  async function doSwitch(deviceid, checkbox) {
+    const dev = devices.get(deviceid);
+    if (!dev) return;
+    checkbox.disabled = true;
+    try {
+      if (dev.vendor === 'sonoff') {
+        const state = checkbox.checked ? 'on' : 'off';
+        const res = await fetch(`/api/wifi/devices/${encodeURIComponent(deviceid)}/switch`, {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ state }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'erro');
+      } else {
+        const dp = parseInt(checkbox.dataset.dp || '1', 10);
+        const value = !!checkbox.checked;
+        const res = await fetch(`/api/tuya/devices/${encodeURIComponent(deviceid)}/dp`, {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ dp, value }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'erro');
+      }
+    } catch (e) {
+      checkbox.checked = !checkbox.checked;
+      showToast(`${dev.name || deviceid}: ${e.message}`, 'err');
+    } finally {
+      checkbox.disabled = false;
+    }
+  }
+
+  // ── Settings — abre modal correto baseado no vendor ────────────────
+  function openSettings(deviceid) {
+    const dev = devices.get(deviceid);
+    if (!dev) return;
+    if (dev.vendor === 'sonoff') openSonoffModal(deviceid);
+    else openTuyaModal(deviceid);
+  }
+
+  // ── Modal Sonoff ────────────────────────────────────────────────────
+  async function openSonoffModal(deviceid) {
+    const d = devices.get(deviceid);
+    if (!d) return;
+    modalDeviceId = deviceid;
+    const rooms = await loadRoomsCache();
+
+    // Populate selects
+    const catSel = document.getElementById('ms-cat');
+    catSel.innerHTML = HA_CATEGORIES.map(c =>
+      `<option value="${c.value}" ${(d.ha_category || 'switch') === c.value ? 'selected' : ''}>${c.label}</option>`
+    ).join('');
+    const roomSel = document.getElementById('ms-room');
+    roomSel.innerHTML = roomOptionsHtml(d.room_id);
+
+    document.getElementById('ms-title').textContent = d.name || d.deviceid;
+    document.getElementById('ms-subtitle').textContent = d.model || '';
+    document.getElementById('ms-name').value = d.name || '';
+    document.getElementById('ms-objid').value = d.object_id || '';
+    document.getElementById('ms-id').textContent = d.deviceid;
+    document.getElementById('ms-model').textContent = d.model || '—';
+    document.getElementById('ms-ip').textContent = d.ip || '—';
+    document.getElementById('ms-mac').textContent = d.mac || (d.state?.staMac) || '—';
+    document.getElementById('ms-fw').textContent = d.state?.fwVersion || '—';
+    document.getElementById('ms-rssi').innerHTML = renderSignal(d.state?.rssi);
+    document.getElementById('ms-ssid').textContent = d.state?.ssid || '—';
+    document.getElementById('ms-mqtt').checked = !!d.mqtt_active;
+    document.getElementById('ms-mqtt-status').textContent = d.mqtt_active ? 'publicando no HA' : 'desligado';
+
+    // Identify state
+    try {
+      const r = await fetch(`/api/wifi/devices/${encodeURIComponent(deviceid)}/identify`);
+      const j = await r.json();
+      const ident = !!j.running;
+      document.getElementById('ms-channel').classList.toggle('identifying', ident);
+      document.getElementById('ms-identify-label').textContent = ident ? 'Parar' : 'Identificar';
+    } catch {}
+
+    // HA preview (auto-slug)
+    const nameInput = document.getElementById('ms-name');
+    const objInput  = document.getElementById('ms-objid');
+    const pvCat = document.querySelector('#ms-channel .ha-pv-cat');
+    const pvId  = document.querySelector('#ms-channel .ha-pv-id');
+    const updatePreview = () => {
+      const id = objInput.value.trim() || slugify(nameInput.value) || 'auto';
+      pvCat.textContent = catSel.value;
+      pvId.textContent = id;
+    };
+    nameInput.oninput = () => { if (!objInput.dataset.userEdited) objInput.value = slugify(nameInput.value); updatePreview(); };
+    objInput.oninput  = () => { objInput.dataset.userEdited = '1'; updatePreview(); };
+    catSel.onchange   = updatePreview;
+    updatePreview();
+
+    modalSonoff.classList.add('show');
+    HomeCore.refreshIcons();
+  }
+
+  document.getElementById('ms-cancel').onclick = () => modalSonoff.classList.remove('show');
+  modalSonoff.addEventListener('click', e => { if (e.target === modalSonoff) modalSonoff.classList.remove('show'); });
+
+  document.getElementById('ms-mqtt').onchange = async (e) => {
+    if (!modalDeviceId) return;
+    const active = e.target.checked;
+    e.target.disabled = true;
+    try {
+      const res = await fetch(`/api/wifi/devices/${encodeURIComponent(modalDeviceId)}/mqtt`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ active }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'erro');
+      document.getElementById('ms-mqtt-status').textContent = active ? 'publicando no HA' : 'desligado';
+      showToast(active ? 'Publicado no HA.' : 'Removido do HA.');
+      const dev = devices.get(modalDeviceId);
+      if (dev) { dev.mqtt_active = active; refreshDevice(modalDeviceId); }
+    } catch (err) {
+      e.target.checked = !active;
+      showToast(`Falhou: ${err.message}`, 'err');
+    } finally {
+      e.target.disabled = false;
+    }
+  };
+
+  document.getElementById('ms-identify').onclick = async () => {
+    if (!modalDeviceId) return;
+    const section = document.getElementById('ms-channel');
+    const wasIdent = section.classList.contains('identifying');
+    const action = wasIdent ? 'stop' : 'start';
+    try {
+      const res = await fetch(`/api/wifi/devices/${encodeURIComponent(modalDeviceId)}/identify`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ action }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'erro');
+      section.classList.toggle('identifying', !wasIdent);
+      document.getElementById('ms-identify-label').textContent = wasIdent ? 'Identificar' : 'Parar';
+    } catch (e) {
+      showToast(`Identify: ${e.message}`, 'err');
+    }
+  };
+
+  formSonoff.addEventListener('submit', async e => {
+    e.preventDefault();
+    if (!modalDeviceId) return;
+    const fd = new FormData(formSonoff);
+    let object_id = fd.get('object_id')?.toString().trim();
+    if (!object_id) object_id = slugify(fd.get('name')?.toString() || '');
+    try {
+      const res = await fetch(`/api/wifi/devices/${encodeURIComponent(modalDeviceId)}`, {
+        method: 'PATCH', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          name: fd.get('name') || null,
+          ha_category: fd.get('ha_category'),
+          room_id: fd.get('room_id') || null,
+          object_id: object_id || null,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || 'erro');
+      }
+      showToast('Salvo.');
+      modalSonoff.classList.remove('show');
+      loadDevices();
+    } catch (err) {
+      showToast(`Falhou: ${err.message}`, 'err');
+    }
+  });
+
+  document.getElementById('ms-remove').onclick = async () => {
+    if (!modalDeviceId) return;
+    if (!confirm(`Remover ${modalDeviceId}?`)) return;
+    try {
+      const res = await fetch(`/api/wifi/devices/${encodeURIComponent(modalDeviceId)}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('erro');
+      modalSonoff.classList.remove('show');
+      showToast('Removido.');
+      loadDevices();
+    } catch (e) {
+      showToast(`Erro: ${e.message}`, 'err');
+    }
+  };
+
+  // ── Modal Tuya ──────────────────────────────────────────────────────
+  function renderTuyaChannelSection(dp, currentDps, channelCfg, rooms, identifying) {
+    const isOn = currentDps?.[dp] === true;
+    const cfg = channelCfg || {};
+    const opts = HA_CATEGORIES.map(c =>
+      `<option value="${c.value}" ${cfg.ha_category === c.value ? 'selected' : ''}>${c.label}</option>`
+    ).join('');
+    const roomOpts = roomOptionsHtml(cfg.room_id);
+    const isIdent = (identifying || []).includes(parseInt(dp, 10));
+    return `
+      <section class="channel-section ${isIdent ? 'identifying' : ''}" data-dp="${dp}">
+        <div class="channel-header">
+          <div class="channel-title">
+            <span class="ch-tag">S${dp}</span>
+            <span>Saída ${dp}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <button type="button" class="btn btn-ghost btn-sm ch-identify" data-dp="${dp}">
+              <i data-lucide="zap" class="icon"></i>${isIdent ? 'Parar' : 'Identificar'}
+            </button>
+            <span class="channel-state">
+              <span class="status-dot ${isOn ? 'online' : 'offline'}"></span>${isOn ? 'ligada' : 'desligada'}
+            </span>
+          </div>
+        </div>
+        <div class="channel-grid">
+          <div class="field full">
+            <label>Nome amigável</label>
+            <input class="input ch-name" type="text" maxlength="80" value="${escapeHtml(cfg.name || '')}">
+          </div>
+          <div class="field">
+            <label>Tipo</label>
+            <select class="select ch-cat">${opts}</select>
+          </div>
+          <div class="field">
+            <label>Cômodo</label>
+            <select class="select ch-room">${roomOpts}</select>
+          </div>
+          <div class="field full">
+            <label>HA object ID</label>
+            <input class="input ch-objid" type="text" maxlength="80" value="${escapeHtml(cfg.object_id || '')}">
+            <div class="ha-preview">→ <strong class="ha-pv-cat">${cfg.ha_category || 'switch'}</strong>.<strong class="ha-pv-id">${cfg.object_id || slugify(cfg.name || '') || 'auto'}</strong></div>
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
+  async function openTuyaModal(deviceid) {
+    const d = devices.get(deviceid);
+    if (!d) return;
+    modalDeviceId = deviceid;
+    const rooms = await loadRoomsCache();
+
+    document.getElementById('mt-title').textContent = d.name || d.deviceid;
+    document.getElementById('mt-subtitle').textContent = d.product_id || d.category || '';
+    document.getElementById('mt-name').value = d.name || '';
+    document.getElementById('mt-id').textContent = d.deviceid;
+    document.getElementById('mt-product').textContent = d.product_id || '—';
+    document.getElementById('mt-tuya-cat').textContent = d.category || '—';
+    document.getElementById('mt-ip').textContent = d.ip || '—';
+    document.getElementById('mt-proto').textContent = d.protocol || '3.3';
+    document.getElementById('mt-mqtt').checked = !!d.mqtt_active;
+    document.getElementById('mt-mqtt-status').textContent = d.mqtt_active ? 'publicando no HA' : 'desligado';
+
+    let identifyingDps = [];
+    try {
+      const r = await fetch(`/api/tuya/devices/${encodeURIComponent(deviceid)}/identify`);
+      const j = await r.json();
+      identifyingDps = j.running_dps || [];
+    } catch {}
+
+    const channels = detectTuyaChannels(d);
+    const cfg = d.channels_config || {};
+    document.getElementById('mt-channels').innerHTML = channels.map(dp =>
+      renderTuyaChannelSection(dp, d.dps || {}, cfg[String(dp)], rooms, identifyingDps)
+    ).join('');
+
+    document.querySelectorAll('#mt-channels .channel-section').forEach((section) => {
+      const nameInput = section.querySelector('.ch-name');
+      const objInput  = section.querySelector('.ch-objid');
+      const catSel    = section.querySelector('.ch-cat');
+      const pvCat     = section.querySelector('.ha-pv-cat');
+      const pvId      = section.querySelector('.ha-pv-id');
+      const updatePreview = () => {
+        const id = objInput.value.trim() || slugify(nameInput.value) || 'auto';
+        pvCat.textContent = catSel.value;
+        pvId.textContent = id;
+      };
+      nameInput.addEventListener('input', () => { if (!objInput.dataset.userEdited) objInput.value = slugify(nameInput.value); updatePreview(); });
+      objInput.addEventListener('input',  () => { objInput.dataset.userEdited = '1'; updatePreview(); });
+      catSel.addEventListener('change',   updatePreview);
+    });
+
+    document.querySelectorAll('#mt-channels .ch-identify').forEach((btn) => {
+      btn.addEventListener('click', () => toggleTuyaIdentify(deviceid, parseInt(btn.dataset.dp, 10), btn));
+    });
+
+    modalTuya.classList.add('show');
+    HomeCore.refreshIcons();
+  }
+
+  async function toggleTuyaIdentify(deviceid, dp, btn) {
+    const section = btn.closest('.channel-section');
+    const wasIdent = section.classList.contains('identifying');
+    const action = wasIdent ? 'stop' : 'start';
+    btn.disabled = true;
+    try {
+      const res = await fetch(`/api/tuya/devices/${encodeURIComponent(deviceid)}/identify`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ action, dp }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'erro');
+      section.classList.toggle('identifying', !wasIdent);
+      btn.innerHTML = `<i data-lucide="zap" class="icon"></i>${wasIdent ? 'Identificar' : 'Parar'}`;
+      HomeCore.refreshIcons();
+    } catch (err) {
+      showToast(`Identify: ${err.message}`, 'err');
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  document.getElementById('mt-cancel').onclick = () => modalTuya.classList.remove('show');
+  modalTuya.addEventListener('click', e => { if (e.target === modalTuya) modalTuya.classList.remove('show'); });
+
+  document.getElementById('mt-mqtt').onchange = async (e) => {
+    if (!modalDeviceId) return;
+    const active = e.target.checked;
+    e.target.disabled = true;
+    try {
+      const res = await fetch(`/api/tuya/devices/${encodeURIComponent(modalDeviceId)}/mqtt`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ active }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'erro');
+      document.getElementById('mt-mqtt-status').textContent = active ? 'publicando no HA' : 'desligado';
+      showToast(active ? 'Publicado no HA.' : 'Removido do HA.');
+      const dev = devices.get(modalDeviceId);
+      if (dev) { dev.mqtt_active = active; refreshDevice(modalDeviceId); }
+    } catch (err) {
+      e.target.checked = !active;
+      showToast(`Falhou: ${err.message}`, 'err');
+    } finally {
+      e.target.disabled = false;
+    }
+  };
+
+  formTuya.addEventListener('submit', async e => {
+    e.preventDefault();
+    if (!modalDeviceId) return;
+    const fd = new FormData(formTuya);
+    const channelsConfig = {};
+    document.querySelectorAll('#mt-channels .channel-section').forEach((section) => {
+      const dp = section.dataset.dp;
+      const name = section.querySelector('.ch-name').value.trim();
+      const ha_category = section.querySelector('.ch-cat').value;
+      const room_id = section.querySelector('.ch-room').value || null;
+      let object_id = section.querySelector('.ch-objid').value.trim();
+      if (!object_id && name) object_id = slugify(name);
+      channelsConfig[dp] = { name: name || null, ha_category, room_id, object_id: object_id || null };
+    });
+    try {
+      const res = await fetch(`/api/tuya/devices/${encodeURIComponent(modalDeviceId)}`, {
+        method: 'PATCH', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          name: fd.get('name') || null,
+          channels_config: channelsConfig,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || 'erro');
+      }
+      showToast('Salvo.');
+      modalTuya.classList.remove('show');
+      loadDevices();
+    } catch (err) {
+      showToast(`Falhou: ${err.message}`, 'err');
+    }
+  });
+
+  document.getElementById('mt-remove').onclick = async () => {
+    if (!modalDeviceId) return;
+    if (!confirm(`Remover ${modalDeviceId}?`)) return;
+    try {
+      const res = await fetch(`/api/tuya/devices/${encodeURIComponent(modalDeviceId)}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('erro');
+      modalTuya.classList.remove('show');
+      showToast('Removido.');
+      loadDevices();
+    } catch (e) {
+      showToast(`Erro: ${e.message}`, 'err');
+    }
+  };
+
+  // ── Tuya Cloud setup + import ───────────────────────────────────────
+  document.getElementById('btn-setup-cancel').onclick = () => setupModal.classList.remove('show');
+  setupModal.addEventListener('click', e => { if (e.target === setupModal) setupModal.classList.remove('show'); });
+
+  formSetup.addEventListener('submit', async e => {
+    e.preventDefault();
+    const fd = new FormData(formSetup);
+    const btn = document.getElementById('btn-setup-save');
+    btn.disabled = true; btn.textContent = 'Validando…';
+    try {
+      const res = await fetch('/api/tuya/cloud/setup', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          access_id: fd.get('access_id'),
+          access_secret: fd.get('access_secret'),
+          region: fd.get('region'),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'erro');
+      showToast('Credenciais salvas.');
+      setupModal.classList.remove('show');
+      formSetup.reset();
+      cloudConfigured = true;
+      ensureHeaderActions();
+    } catch (err) {
+      showToast(`Falhou: ${err.message}`, 'err');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Validar e salvar';
+    }
+  });
+
+  async function doTuyaImport() {
+    try {
+      const res = await fetch('/api/tuya/include', {
+        method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}',
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'erro');
+      showToast(`${data.saved.length} device(s) importados.`);
+      loadDevices();
+    } catch (e) {
+      showToast(`Import falhou: ${e.message}`, 'err');
+    }
+  }
+
+  // ── Live state via SSE (Sonoff + Tuya) ──────────────────────────────
+  function startStateStreams() {
+    // Sonoff stream
+    const esW = new EventSource('/api/wifi/devices/state/stream');
+    esW.addEventListener('state', (ev) => {
+      const data = JSON.parse(ev.data);
+      const dev = devices.get(data.deviceid);
+      if (dev && dev.vendor === 'sonoff') {
+        if (data.is_on !== undefined) dev.is_on = data.is_on;
+        if (data.state) dev.state = data.state;
+        dev.last_seen_ts = Date.now()/1000;
+        refreshDevice(data.deviceid);
+      }
+    });
+
+    // Tuya stream
+    const esT = new EventSource('/api/tuya/devices/state/stream');
+    esT.addEventListener('state', (ev) => {
+      const data = JSON.parse(ev.data);
+      const dev = devices.get(data.deviceid);
+      if (dev && dev.vendor === 'tuya') {
+        if (data.dps) dev.dps = { ...(dev.dps||{}), ...data.dps };
+        if (data.online !== undefined) dev.online = data.online;
+        dev.last_seen_ts = Date.now()/1000;
+        refreshDevice(data.deviceid);
+      }
+    });
+  }
+
+  // Bootstrap
+  (async () => {
+    await checkCloudStatus();
+    await loadDevices();
+    startStateStreams();
+    setInterval(loadDevices, 30000);
+  })();
+})();
+</script>
+</body>
+</html>

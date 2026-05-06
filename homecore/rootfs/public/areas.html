@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>HomeCore — Cômodos</title>
+<base href="./" />
+<link rel="stylesheet" href="assets/app.css" />
+<script src="assets/lucide.min.js"></script>
+<script src="assets/app.js"></script>
+<style>
+  .floor-block { margin-bottom: 28px; }
+  .floor-head {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+  }
+  .floor-head .m-tile { width: 36px; height: 36px; }
+  .floor-head h2 {
+    margin: 0; font-size: 16px; font-weight: 600; letter-spacing: -0.01em;
+    flex: 1;
+  }
+  .floor-head .count {
+    font-size: 12px; color: var(--text-muted);
+    background: var(--surface-2); border-radius: var(--r-pill);
+    padding: 2px 10px;
+  }
+  .floor-head .actions { display: flex; gap: 4px; }
+  .room-grid {
+    display: grid; gap: 10px;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  }
+  .room-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    padding: 14px 16px;
+    display: flex; align-items: center; gap: 12px;
+    transition: box-shadow 0.15s, border-color 0.15s;
+  }
+  .room-card:hover { box-shadow: var(--shadow-sm); border-color: var(--border-strong); }
+  .room-card .m-content { flex: 1; min-width: 0; }
+  .room-card .m-title { font-weight: 500; font-size: 14px; }
+  .room-card .m-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .field-row { display: flex; gap: 8px; }
+  .field-row .field { flex: 1; }
+</style>
+</head>
+<body>
+
+<header class="app-header"></header>
+
+<main class="app-main" id="root"></main>
+
+<div class="modal-backdrop" id="modal-floor">
+  <div class="modal">
+    <div class="modal-head">
+      <h2 id="mf-title">Novo andar</h2>
+      <p>Andares agrupam cômodos (ex: Térreo, 1º andar).</p>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>Nome</label>
+        <input class="input" id="mf-name" placeholder="ex: Térreo" />
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Nível</label>
+          <input class="input" id="mf-level" type="number" value="0" />
+          <span class="hint">Ordem (menor → mais embaixo).</span>
+        </div>
+        <div class="field">
+          <label>Ícone</label>
+          <input class="input" id="mf-icon" placeholder="layers" />
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <div class="left">
+        <button class="btn btn-danger" id="mf-delete" style="display:none">
+          <i data-lucide="trash-2" class="icon"></i> Remover
+        </button>
+      </div>
+      <div class="right">
+        <button class="btn" id="mf-cancel">Cancelar</button>
+        <button class="btn btn-primary" id="mf-save"><i data-lucide="check" class="icon"></i> Salvar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="modal-room">
+  <div class="modal">
+    <div class="modal-head">
+      <h2 id="mr-title">Novo cômodo</h2>
+      <p>Os dispositivos publicados no Home Assistant herdam o nome do cômodo como área.</p>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>Nome</label>
+        <input class="input" id="mr-name" placeholder="ex: Sala" />
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Andar</label>
+          <select class="select" id="mr-floor"></select>
+        </div>
+        <div class="field">
+          <label>Ícone</label>
+          <input class="input" id="mr-icon" placeholder="door-open" />
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <div class="left">
+        <button class="btn btn-danger" id="mr-delete" style="display:none">
+          <i data-lucide="trash-2" class="icon"></i> Remover
+        </button>
+      </div>
+      <div class="right">
+        <button class="btn" id="mr-cancel">Cancelar</button>
+        <button class="btn btn-primary" id="mr-save"><i data-lucide="check" class="icon"></i> Salvar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><i data-lucide="info" class="icon"></i><span id="toast-msg"></span></div>
+
+<script>
+HomeCore.mountHeader({
+  icon: 'layout-dashboard',
+  title: 'Cômodos',
+  active: 'areas',
+  actions: `
+    <button class="btn" id="btn-new-floor"><i data-lucide="layers" class="icon"></i>Novo andar</button>
+    <button class="btn btn-primary" id="btn-new-room"><i data-lucide="plus" class="icon"></i>Novo cômodo</button>
+  `,
+});
+
+let state = { floors: [], rooms: [] };
+let editingFloor = null;
+let editingRoom = null;
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...opts });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+
+function toast(msg, type = '') {
+  const t = document.getElementById('toast');
+  document.getElementById('toast-msg').textContent = msg;
+  const iconEl = t.querySelector('[data-lucide]') || t.querySelector('svg');
+  if (iconEl) {
+    const next = type === 'ok' ? 'check-circle-2' : type === 'err' ? 'alert-circle' : 'info';
+    iconEl.setAttribute('data-lucide', next);
+  }
+  t.className = 'toast show ' + type;
+  HomeCore.refreshIcons();
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => (t.className = 'toast ' + type), 2800);
+}
+
+function esc(s) { return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
+
+async function loadAll() {
+  state = await api('api/areas');
+  render();
+}
+
+function render() {
+  const root = document.getElementById('root');
+  if (!state.floors.length && !state.rooms.length) {
+    root.innerHTML = `
+      <div class="empty">
+        <i data-lucide="layout-dashboard" class="icon"></i>
+        <div>Nenhum andar ou cômodo cadastrado</div>
+        <div style="display:flex;gap:8px;margin-top:10px;justify-content:center">
+          <button class="btn" onclick="openFloor(null)"><i data-lucide="layers" class="icon"></i>Novo andar</button>
+          <button class="btn btn-primary" onclick="openRoom(null)"><i data-lucide="plus" class="icon"></i>Novo cômodo</button>
+        </div>
+      </div>`;
+    HomeCore.refreshIcons();
+    return;
+  }
+
+  const roomsByFloor = {};
+  for (const r of state.rooms) {
+    const k = r.floorId || '__none__';
+    (roomsByFloor[k] = roomsByFloor[k] || []).push(r);
+  }
+
+  const blocks = state.floors.map((f) => floorBlock(f, roomsByFloor[f.id] || []));
+  if (roomsByFloor.__none__) {
+    blocks.push(floorBlock({ id: null, name: 'Sem andar', icon: 'help-circle' }, roomsByFloor.__none__));
+  }
+  root.innerHTML = blocks.join('');
+  HomeCore.refreshIcons();
+}
+
+function floorBlock(f, rooms) {
+  return `
+    <section class="floor-block">
+      <div class="floor-head">
+        <div class="m-tile tint-accent"><i data-lucide="${esc(f.icon || 'layers')}" class="icon"></i></div>
+        <h2>${esc(f.name)}</h2>
+        <span class="count">${rooms.length} cômodo${rooms.length === 1 ? '' : 's'}</span>
+        <div class="actions">
+          ${f.id ? `<button class="icon-btn sm" onclick="openFloor('${esc(f.id)}')" title="Editar andar"><i data-lucide="settings" class="icon"></i></button>` : ''}
+        </div>
+      </div>
+      <div class="room-grid">
+        ${rooms.map(roomCard).join('') || `<p class="hint" style="margin:0">Sem cômodos neste andar.</p>`}
+      </div>
+    </section>
+  `;
+}
+
+function roomCard(r) {
+  return `
+    <article class="room-card">
+      <div class="m-tile tint-accent"><i data-lucide="${esc(r.icon || 'door-open')}" class="icon"></i></div>
+      <div class="m-content">
+        <div class="m-title">${esc(r.name)}</div>
+        <div class="m-sub">${esc(r.id)}</div>
+      </div>
+      <button class="icon-btn sm" onclick="openRoom('${esc(r.id)}')" title="Editar"><i data-lucide="settings" class="icon"></i></button>
+    </article>
+  `;
+}
+
+// ── Floor modal ──
+function openFloor(id) {
+  editingFloor = id;
+  const f = id ? state.floors.find((x) => x.id === id) : null;
+  document.getElementById('mf-title').textContent = f ? `Editar ${f.name}` : 'Novo andar';
+  document.getElementById('mf-name').value = f?.name || '';
+  document.getElementById('mf-level').value = f?.level ?? state.floors.length;
+  document.getElementById('mf-icon').value = f?.icon || 'layers';
+  document.getElementById('mf-delete').style.display = f ? 'inline-flex' : 'none';
+  document.getElementById('modal-floor').classList.add('show');
+  HomeCore.refreshIcons();
+}
+
+async function saveFloor() {
+  const name = document.getElementById('mf-name').value.trim();
+  const level = +document.getElementById('mf-level').value || 0;
+  const icon = document.getElementById('mf-icon').value.trim() || 'layers';
+  if (!name) { toast('Digite o nome', 'err'); return; }
+  try {
+    await api('api/areas/floors', { method: 'POST', body: JSON.stringify({ id: editingFloor, name, level, icon }) });
+    document.getElementById('modal-floor').classList.remove('show');
+    toast('Andar salvo', 'ok');
+    await loadAll();
+  } catch (e) { toast(e.message, 'err'); }
+}
+
+async function deleteFloor() {
+  if (!editingFloor) return;
+  if (!confirm('Remover este andar? Os cômodos ficarão sem andar.')) return;
+  try {
+    await api(`api/areas/floors/${editingFloor}`, { method: 'DELETE' });
+    document.getElementById('modal-floor').classList.remove('show');
+    toast('Andar removido', 'ok');
+    await loadAll();
+  } catch (e) { toast(e.message, 'err'); }
+}
+
+// ── Room modal ──
+function openRoom(id) {
+  editingRoom = id;
+  const r = id ? state.rooms.find((x) => x.id === id) : null;
+  document.getElementById('mr-title').textContent = r ? `Editar ${r.name}` : 'Novo cômodo';
+  document.getElementById('mr-name').value = r?.name || '';
+  document.getElementById('mr-icon').value = r?.icon || 'door-open';
+  const sel = document.getElementById('mr-floor');
+  sel.innerHTML = `<option value="">— sem andar —</option>` + state.floors.map((f) =>
+    `<option value="${esc(f.id)}" ${f.id === r?.floorId ? 'selected' : ''}>${esc(f.name)}</option>`
+  ).join('');
+  document.getElementById('mr-delete').style.display = r ? 'inline-flex' : 'none';
+  document.getElementById('modal-room').classList.add('show');
+  HomeCore.refreshIcons();
+}
+
+async function saveRoom() {
+  const name = document.getElementById('mr-name').value.trim();
+  const floorId = document.getElementById('mr-floor').value || null;
+  const icon = document.getElementById('mr-icon').value.trim() || 'door-open';
+  if (!name) { toast('Digite o nome', 'err'); return; }
+  try {
+    await api('api/areas/rooms', { method: 'POST', body: JSON.stringify({ id: editingRoom, name, floorId, icon }) });
+    document.getElementById('modal-room').classList.remove('show');
+    toast('Cômodo salvo', 'ok');
+    await loadAll();
+  } catch (e) { toast(e.message, 'err'); }
+}
+
+async function deleteRoom() {
+  if (!editingRoom) return;
+  if (!confirm('Remover este cômodo? Dispositivos que o usam ficarão sem área.')) return;
+  try {
+    await api(`api/areas/rooms/${editingRoom}`, { method: 'DELETE' });
+    document.getElementById('modal-room').classList.remove('show');
+    toast('Cômodo removido', 'ok');
+    await loadAll();
+  } catch (e) { toast(e.message, 'err'); }
+}
+
+document.getElementById('btn-new-floor').onclick = () => openFloor(null);
+document.getElementById('btn-new-room').onclick = () => openRoom(null);
+document.getElementById('mf-cancel').onclick = () => document.getElementById('modal-floor').classList.remove('show');
+document.getElementById('mf-save').onclick = saveFloor;
+document.getElementById('mf-delete').onclick = deleteFloor;
+document.getElementById('mr-cancel').onclick = () => document.getElementById('modal-room').classList.remove('show');
+document.getElementById('mr-save').onclick = saveRoom;
+document.getElementById('mr-delete').onclick = deleteRoom;
+['modal-floor', 'modal-room'].forEach((mid) => {
+  document.getElementById(mid).addEventListener('click', (e) => {
+    if (e.target.id === mid) document.getElementById(mid).classList.remove('show');
+  });
+});
+
+window.openFloor = openFloor;
+window.openRoom = openRoom;
+
+loadAll();
+</script>
+
+</body>
+</html>

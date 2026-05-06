@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>HomeCore — Buscar dispositivos Wi-Fi</title>
+<base href="./" />
+<link rel="stylesheet" href="assets/app.css" />
+<link rel="stylesheet" href="assets/wifi.css" />
+<script src="assets/lucide.min.js"></script>
+<script src="assets/app.js"></script>
+</head>
+<body>
+<header class="app-header"></header>
+<main class="app-main">
+  <div class="stats">
+    <div class="stat"><div class="label">Sub-rede</div><div class="value" id="s-subnet">—</div></div>
+    <div class="stat"><div class="label">Varredura</div><div class="value" id="s-progress">—<small id="s-progress-total"></small></div></div>
+    <div class="stat"><div class="label">Encontrados</div><div class="value" id="s-count">0</div></div>
+    <div class="stat"><div class="label">Tempo</div><div class="value" id="s-elapsed">—<small>s</small></div></div>
+  </div>
+
+  <div class="progress-wrap" id="progress-wrap"><div class="progress-bar" id="progress-bar"></div></div>
+
+  <div id="results">
+    <div class="empty-state" id="empty">
+      <i data-lucide="radar" class="icon"></i>
+      <div>Clique em <strong>Buscar</strong> pra varrer a rede.</div>
+      <div style="margin-top:6px;font-size:13px">Procura Sonoff (mDNS + porta 8081) e Tuya (porta 6668) na sua /24.</div>
+    </div>
+  </div>
+</main>
+
+<!-- Selection action bar -->
+<div class="action-bar" id="action-bar">
+  <span><span class="count" id="sel-count">0</span> selecionado(s)</span>
+  <button class="btn btn-ghost" id="btn-clear-sel">Limpar</button>
+  <button class="btn btn-primary" id="btn-include">
+    <i data-lucide="arrow-right" class="icon"></i>Incluir
+  </button>
+</div>
+
+<!-- eWeLink credentials modal -->
+<div class="modal-backdrop" id="modal">
+  <div class="modal-card">
+    <h2>Buscar chaves na eWeLink</h2>
+    <p class="hint">Login usado uma única vez para baixar o <code>devicekey</code> dos selecionados. Credenciais não são salvas.</p>
+    <form id="form-include">
+      <div class="field" style="margin-bottom:12px">
+        <label for="f-email">E-mail</label>
+        <input class="input" type="email" id="f-email" name="email" autocomplete="username" required>
+      </div>
+      <div class="field" style="margin-bottom:12px">
+        <label for="f-password">Senha</label>
+        <input class="input" type="password" id="f-password" name="password" autocomplete="current-password" required>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="f-region">Região</label>
+          <select class="select" id="f-region" name="region">
+            <option value="us">us</option>
+            <option value="eu">eu</option>
+            <option value="as" selected>as</option>
+            <option value="cn">cn</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="f-cc">Country code</label>
+          <input class="input" type="text" id="f-cc" name="country_code" value="+55">
+        </div>
+      </div>
+      <div class="actions">
+        <button type="button" class="btn btn-ghost" id="btn-cancel">Cancelar</button>
+        <button type="submit" class="btn btn-primary" id="btn-fetch">Buscar e incluir</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+HomeCore.mountHeader({
+  icon: 'radar',
+  title: 'Buscar dispositivos',
+  active: 'wifi-scan',
+  actions: '<button id="btn-scan" class="btn btn-primary"><i data-lucide="search" class="icon"></i><span class="label">Buscar</span></button>',
+});
+
+(() => {
+  const btn = document.getElementById('btn-scan');
+  const btnLabel = btn.querySelector('.label');
+  const empty = document.getElementById('empty');
+  const results = document.getElementById('results');
+  const sSubnet = document.getElementById('s-subnet');
+  const sProgress = document.getElementById('s-progress');
+  const sProgressTotal = document.getElementById('s-progress-total');
+  const sCount = document.getElementById('s-count');
+  const sElapsed = document.getElementById('s-elapsed');
+  const progressWrap = document.getElementById('progress-wrap');
+  const progressBar = document.getElementById('progress-bar');
+  const toast = document.getElementById('toast');
+  const actionBar = document.getElementById('action-bar');
+  const selCount = document.getElementById('sel-count');
+  const modal = document.getElementById('modal');
+  const formInclude = document.getElementById('form-include');
+  const btnFetch = document.getElementById('btn-fetch');
+
+  const cards = new Map();
+  const devicesByIp = new Map();
+  const selected = new Set();
+  const includedKeys = new Set();
+  let grid = null;
+  let gridIncluded = null;
+  let scanStart = null;
+  let elapsedTimer = null;
+  let currentSource = null;
+
+  const showToast = (msg, kind='ok') => {
+    toast.className = 'toast show' + (kind==='warn'?' warn':kind==='err'?' err':'');
+    toast.textContent = msg;
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(()=>toast.classList.remove('show'), 3200);
+  };
+  const escapeHtml = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const ipToNum = ip => ip.split('.').reduce((a,b)=>(a<<8)+parseInt(b,10),0)>>>0;
+
+  function ensureGrid() {
+    if (!grid) {
+      empty.style.display = 'none';
+      results.innerHTML = '';
+      grid = document.createElement('div');
+      grid.className = 'scan-grid';
+      results.appendChild(grid);
+    }
+  }
+
+  function ensureIncludedGrid() {
+    if (!gridIncluded) {
+      const wrap = document.createElement('div');
+      wrap.className = 'included-section';
+      wrap.innerHTML = '<h3 class="section-heading">Adicionados</h3>';
+      gridIncluded = document.createElement('div');
+      gridIncluded.className = 'scan-grid';
+      wrap.appendChild(gridIncluded);
+      results.appendChild(wrap);
+    }
+  }
+
+  const normKey = (s) => String(s || '').replace(/[: ]/g, '').toLowerCase();
+  function isIncluded(d) {
+    const candidates = [normKey(d.deviceid), normKey(d.mac), normKey(d.ip)];
+    return candidates.some((k) => k && includedKeys.has(k));
+  }
+
+  async function loadIncluded() {
+    includedKeys.clear();
+    try {
+      const [w, t] = await Promise.all([
+        fetch('/api/wifi/devices').then(r => r.ok ? r.json() : { devices: [] }).catch(() => ({ devices: [] })),
+        fetch('/api/tuya/devices').then(r => r.ok ? r.json() : { devices: [] }).catch(() => ({ devices: [] })),
+      ]);
+      const addAll = (devs) => {
+        for (const d of (devs || [])) {
+          if (d.deviceid) includedKeys.add(normKey(d.deviceid));
+          if (d.mac) includedKeys.add(normKey(d.mac));
+          if (d.ip) includedKeys.add(normKey(d.ip));
+        }
+      };
+      addAll(w.devices); addAll(t.devices);
+    } catch {}
+  }
+
+  function renderCardBody(d) {
+    const portsHtml = (d.open_ports || []).map(p=>`<span class="port">${p}</span>`).join('');
+    const meta = [];
+    if (d.deviceid) meta.push(`<span>id <span class="v">${escapeHtml(d.deviceid)}</span></span>`);
+    if (d.mac) meta.push(`<span>mac <span class="v">${escapeHtml(d.mac)}</span></span>`);
+    if (d.oui_vendor) meta.push(`<span>oui <span class="v">${escapeHtml(d.oui_vendor)}</span></span>`);
+    const corner = isIncluded(d)
+      ? `<i data-lucide="check" class="included-check"></i>`
+      : `<div class="checkbox"></div>`;
+    return `
+      ${corner}
+      <div class="head">
+        <span class="vendor-pill vendor-${d.vendor}">${d.vendor}</span>
+      </div>
+      <div class="ip">${escapeHtml(d.ip)}</div>
+      ${d.hostname ? `<div class="hostname">${escapeHtml(d.hostname)}</div>` : ''}
+      ${meta.length ? `<div class="meta-row">${meta.join('')}</div>` : ''}
+      <div class="ports">${portsHtml}<span class="port source">${escapeHtml(d.source || '—')}</span></div>
+    `;
+  }
+
+  function upsertDevice(d) {
+    ensureGrid();
+    devicesByIp.set(d.ip, d);
+    const included = isIncluded(d);
+    const targetGrid = included ? (ensureIncludedGrid(), gridIncluded) : grid;
+    let el = cards.get(d.ip);
+    if (!el) {
+      el = document.createElement('div');
+      el.className = 'scan-card';
+      el.dataset.ip = d.ip;
+      cards.set(d.ip, el);
+    }
+    if (el.parentNode !== targetGrid) {
+      const ipNum = ipToNum(d.ip);
+      let inserted = false;
+      for (const child of targetGrid.children) {
+        if (ipToNum(child.dataset.ip || '0.0.0.0') > ipNum) { targetGrid.insertBefore(el, child); inserted = true; break; }
+      }
+      if (!inserted) targetGrid.appendChild(el);
+      if (!included) el.addEventListener('click', () => toggleSelect(d.ip));
+    }
+    el.classList.toggle('included', included);
+    el.classList.toggle('no-deviceid', !included && d.vendor !== 'sonoff');
+    el.innerHTML = renderCardBody(d);
+    if (selected.has(d.ip)) el.classList.add('selected');
+    sCount.textContent = cards.size;
+    updatePendingPlaceholder();
+    HomeCore.refreshIcons?.();
+  }
+
+  function updatePendingPlaceholder() {
+    if (!grid) return;
+    const hasPending = [...grid.children].some((c) => c.classList?.contains('scan-card'));
+    let ph = grid.querySelector('.pending-empty');
+    if (!hasPending) {
+      if (!ph) {
+        ph = document.createElement('div');
+        ph.className = 'pending-empty';
+        ph.innerHTML = '<i data-lucide="check-circle-2" class="icon"></i><span>Sem dispositivos pendentes</span>';
+        grid.appendChild(ph);
+      }
+    } else if (ph) {
+      ph.remove();
+    }
+  }
+
+  function toggleSelect(ip) {
+    const d = devicesByIp.get(ip);
+    if (!d) return;
+    if (isIncluded(d)) return;
+    if (d.vendor !== 'sonoff') {
+      showToast('Só Sonoff podem ser incluídos por enquanto.', 'warn');
+      return;
+    }
+    const el = cards.get(ip);
+    if (selected.has(ip)) { selected.delete(ip); el.classList.remove('selected'); }
+    else { selected.add(ip); el.classList.add('selected'); }
+    selCount.textContent = selected.size;
+    actionBar.classList.toggle('show', selected.size > 0);
+  }
+
+  document.getElementById('btn-clear-sel').addEventListener('click', () => {
+    selected.forEach(ip => cards.get(ip)?.classList.remove('selected'));
+    selected.clear();
+    selCount.textContent = 0;
+    actionBar.classList.remove('show');
+  });
+
+  document.getElementById('btn-include').addEventListener('click', () => modal.classList.add('show'));
+  document.getElementById('btn-cancel').addEventListener('click', () => modal.classList.remove('show'));
+  modal.addEventListener('click', (e) => { if (e.target === modal) modal.classList.remove('show'); });
+
+  formInclude.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(formInclude);
+    const payload = {
+      email: fd.get('email'), password: fd.get('password'),
+      region: fd.get('region'), country_code: fd.get('country_code'),
+      devices: [...selected].map(ip => {
+        const d = devicesByIp.get(ip);
+        return { deviceid: d.deviceid, ip: d.ip, mac: d.mac };
+      }),
+    };
+    btnFetch.disabled = true;
+    btnFetch.textContent = 'Buscando…';
+    try {
+      const res = await fetch('/api/wifi/include', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'erro desconhecido');
+      const savedN = (data.saved||[]).length;
+      const missingN = (data.missing||[]).length;
+      const unmatchedN = (data.unmatched_ips||[]).length;
+      if (savedN === 0) {
+        showToast('Nenhum dispositivo bateu.', 'err');
+      } else {
+        let msg = `${savedN} incluído(s).`;
+        if (missingN) msg += ` ${missingN} fora da conta.`;
+        if (unmatchedN) msg += ` ${unmatchedN} IP sem chave válida.`;
+        showToast(msg);
+        modal.classList.remove('show');
+        formInclude.reset();
+        setTimeout(()=>location.href='wifi.html', 1200);
+      }
+    } catch (err) {
+      showToast(`Falhou: ${err.message}`, 'err');
+    } finally {
+      btnFetch.disabled = false;
+      btnFetch.textContent = 'Buscar e incluir';
+    }
+  });
+
+  function setScanning(on) {
+    btn.disabled = on;
+    btnLabel.textContent = on ? 'Buscando…' : (cards.size ? 'Buscar de novo' : 'Buscar');
+    progressWrap.classList.toggle('active', on);
+    if (on) {
+      scanStart = performance.now();
+      elapsedTimer = setInterval(() => {
+        sElapsed.firstChild.textContent = ((performance.now() - scanStart) / 1000).toFixed(1);
+      }, 100);
+    } else {
+      clearInterval(elapsedTimer);
+      if (scanStart) sElapsed.firstChild.textContent = ((performance.now() - scanStart) / 1000).toFixed(1);
+    }
+  }
+
+  async function startScan() {
+    await loadIncluded();
+    setScanning(true);
+    progressBar.classList.remove('done');
+    progressBar.style.width = '0%';
+    sProgress.firstChild.textContent = '0';
+    sProgressTotal.textContent = '';
+
+    if (currentSource) currentSource.close();
+    const es = new EventSource('/api/wifi/discover/stream');
+    currentSource = es;
+
+    es.addEventListener('subnet', (e) => { sSubnet.textContent = JSON.parse(e.data).value || '—'; });
+    es.addEventListener('progress', (e) => {
+      const { scanned, total } = JSON.parse(e.data);
+      sProgress.firstChild.textContent = scanned;
+      sProgressTotal.textContent = ` / ${total}`;
+      progressBar.style.width = (total ? (scanned/total*100) : 0) + '%';
+    });
+    es.addEventListener('device', (e) => upsertDevice(JSON.parse(e.data).data));
+    es.addEventListener('done', (e) => {
+      const { count, elapsed } = JSON.parse(e.data);
+      progressBar.style.width = '100%';
+      progressBar.classList.add('done');
+      setScanning(false);
+      es.close(); currentSource = null;
+      if (count === 0) showToast('Nenhum dispositivo encontrado.', 'warn');
+      else showToast(`${count} dispositivo${count>1?'s':''} em ${elapsed}s.`);
+    });
+    es.onerror = () => {
+      if (es.readyState === EventSource.CLOSED) return;
+      showToast('Stream perdido.', 'err');
+      setScanning(false);
+      es.close(); currentSource = null;
+    };
+  }
+  btn.addEventListener('click', startScan);
+})();
+</script>
+</body>
+</html>

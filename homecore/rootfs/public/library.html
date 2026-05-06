@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>HomeCore — Biblioteca IR</title>
+<base href="./" />
+<link rel="stylesheet" href="assets/app.css" />
+<script src="assets/lucide.min.js"></script>
+<script src="assets/app.js"></script>
+<style>
+  body, html { overflow: hidden; }
+  .page-layout {
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    height: calc(100vh - 57px);
+  }
+  aside {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    transition: background-color 0.2s;
+  }
+  aside.drag-over { background: var(--accent-weak); }
+  .aside-head {
+    padding: 14px; border-bottom: 1px solid var(--border);
+    display: flex; gap: 8px; align-items: center;
+    position: sticky; top: 0; background: var(--surface); z-index: 1;
+  }
+  .aside-head .input { flex: 1; padding: 8px 10px 8px 34px; background-image: none; }
+  .search-wrap { position: relative; flex: 1; }
+  .search-wrap .icon-search { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; color: var(--text-subtle); pointer-events: none; }
+
+  .code-item {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: background-color 0.1s;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .code-item:hover { background: var(--surface-2); }
+  .code-item.selected { background: var(--accent-weak); }
+  .code-item .info { flex: 1; min-width: 0; }
+  .code-item .title {
+    font-weight: 500; font-size: 13px; margin-bottom: 3px; color: var(--text);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .code-item .meta { font-size: 11px; color: var(--text-muted); display: flex; gap: 8px; align-items: center; }
+
+  main.editor-main { display: flex; flex-direction: column; overflow: hidden; background: var(--surface); }
+  .editor-head {
+    padding: 14px 22px; display: flex; align-items: center; gap: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .editor-head h2 { margin: 0; font-size: 15px; flex: 1; font-weight: 600; letter-spacing: -0.01em; }
+
+  .mode-tabs { display: inline-flex; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-md); padding: 3px; }
+  .mode-tabs button { padding: 5px 12px; border-radius: calc(var(--r-md) - 3px); background: transparent; border: none; cursor: pointer; color: var(--text-muted); font-size: 12px; font-weight: 500; font-family: inherit; }
+  .mode-tabs button.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); }
+
+  .status-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 10px; border-radius: 999px;
+    background: var(--surface-2); font-size: 11px; color: var(--text-muted);
+  }
+  .status-chip.ok { background: color-mix(in srgb, var(--ok) 10%, transparent); color: var(--ok); }
+  .status-chip.err { background: color-mix(in srgb, var(--err) 10%, transparent); color: var(--err); }
+
+  .editor-wrap { flex: 1; overflow: auto; }
+
+  /* JSON mode */
+  .editor {
+    width: 100%; min-height: 100%;
+    padding: 18px 22px;
+    font-family: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+    font-size: 13px; line-height: 1.6;
+    color: var(--text); background: var(--surface);
+    border: 0; outline: none; resize: none;
+    tab-size: 2; -moz-tab-size: 2; box-sizing: border-box;
+  }
+
+  /* Visual mode */
+  .visual { padding: 20px 22px; display: flex; flex-direction: column; gap: 22px; }
+  .visual section { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-md); padding: 16px 18px; }
+  .visual section h3 { margin: 0 0 12px; font-size: 13px; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 8px; }
+  .visual section h3 .icon { width: 14px; height: 14px; color: var(--text-muted); }
+  .meta-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+  .meta-grid .field { display: flex; flex-direction: column; gap: 4px; }
+  .meta-grid label { font-size: 11px; color: var(--text-muted); font-weight: 500; }
+  .meta-grid input { padding: 8px 10px; border-radius: var(--r-sm); border: 1px solid var(--border); background: var(--surface); color: var(--text); font: inherit; font-size: 13px; }
+  .meta-grid input:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: var(--accent); }
+
+  /* op tabs */
+  .op-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 14px; }
+  .op-tab {
+    padding: 6px 12px; border-radius: var(--r-pill);
+    border: 1px solid var(--border); background: var(--surface);
+    color: var(--text-muted); cursor: pointer;
+    font-size: 12px; font-weight: 500; font-family: inherit;
+    transition: all 0.12s;
+  }
+  .op-tab:hover { background: var(--surface-3); color: var(--text); }
+  .op-tab.active { background: var(--accent); color: white; border-color: var(--accent); }
+  .op-tab.off-tab { margin-left: auto; }
+  .op-tab.off-tab.active { background: var(--err); border-color: var(--err); }
+
+  .swing-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; font-size: 12px; color: var(--text-muted); }
+  .swing-row select { padding: 5px 8px; border-radius: var(--r-sm); border: 1px solid var(--border); background: var(--surface); color: var(--text); font: inherit; font-size: 12px; }
+
+  /* commands grid */
+  .cmd-grid { display: grid; gap: 4px; min-width: max-content; }
+  .cmd-grid .ch { font-size: 11px; font-weight: 600; color: var(--text-muted); padding: 6px 10px; text-align: center; text-transform: uppercase; letter-spacing: 0.04em; }
+  .cmd-grid .rh { font-size: 12px; font-weight: 500; color: var(--text); padding: 8px 12px; display: flex; align-items: center; }
+  .cmd-cell {
+    padding: 8px 6px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm);
+    cursor: pointer; transition: all 0.12s;
+    display: flex; align-items: center; justify-content: center;
+    min-height: 32px; min-width: 44px;
+    font-size: 11px; color: var(--text-muted);
+  }
+  .cmd-cell:hover { border-color: var(--accent); color: var(--accent); }
+  .cmd-cell.has { background: color-mix(in srgb, var(--ok) 10%, var(--surface)); border-color: color-mix(in srgb, var(--ok) 35%, var(--border)); color: var(--ok); }
+  .cmd-cell .icon { width: 13px; height: 13px; }
+  .cmd-grid-scroll { overflow-x: auto; padding-bottom: 4px; }
+
+  /* flat buttons (media/remote) */
+  .btn-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 8px; }
+  .btn-tile {
+    padding: 10px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md);
+    cursor: pointer; transition: all 0.12s;
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    font-size: 12px;
+  }
+  .btn-tile:hover { border-color: var(--accent); }
+  .btn-tile.has .label { color: var(--text); font-weight: 500; }
+  .btn-tile:not(.has) .label { color: var(--text-muted); font-style: italic; }
+  .btn-tile .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--border); flex-shrink: 0; }
+  .btn-tile.has .dot { background: var(--ok); }
+  .btn-tile-actions { display: flex; gap: 6px; align-items: center; }
+  .btn-tile .add-icon { width: 14px; height: 14px; color: var(--text-subtle); }
+
+  .add-row { display: flex; gap: 6px; margin-top: 12px; }
+  .add-row input { flex: 1; padding: 7px 10px; border-radius: var(--r-sm); border: 1px solid var(--border); background: var(--surface); color: var(--text); font: inherit; font-size: 12px; }
+
+  /* tags input (modes / fans / models) */
+  .chip-list { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .chip-tag {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 4px 4px 4px 10px; background: var(--accent-weak); color: var(--accent);
+    border-radius: var(--r-pill); font-size: 11px; font-weight: 500;
+  }
+  .chip-tag button { background: transparent; border: none; cursor: pointer; color: inherit; padding: 2px; display: inline-flex; border-radius: var(--r-sm); }
+  .chip-tag button:hover { background: color-mix(in srgb, currentColor 18%, transparent); }
+  .chip-add { padding: 4px 8px; border: 1px dashed var(--border-strong); border-radius: var(--r-pill); background: transparent; color: var(--text-muted); font-size: 11px; cursor: pointer; font-family: inherit; }
+  .chip-add:hover { color: var(--accent); border-color: var(--accent); }
+
+  .editor-foot {
+    padding: 11px 22px; background: var(--surface-2);
+    border-top: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 12px; color: var(--text-muted);
+  }
+  .editor-foot .right { display: flex; gap: 8px; }
+
+  /* Code modal */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 100;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .modal-card {
+    background: var(--surface); border-radius: var(--r-lg); width: min(560px, 92vw);
+    max-height: 86vh; display: flex; flex-direction: column; overflow: hidden;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.3);
+  }
+  .modal-head { padding: 16px 20px; border-bottom: 1px solid var(--border); }
+  .modal-head h3 { margin: 0; font-size: 14px; font-weight: 600; }
+  .modal-head .sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .modal-body { padding: 16px 20px; overflow-y: auto; }
+  .modal-body textarea {
+    width: 100%; min-height: 160px; padding: 10px 12px;
+    font-family: "JetBrains Mono", monospace; font-size: 12px; line-height: 1.5;
+    border-radius: var(--r-sm); border: 1px solid var(--border);
+    background: var(--surface-2); color: var(--text); outline: none; resize: vertical; box-sizing: border-box;
+  }
+  .modal-foot { padding: 12px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; }
+</style>
+</head>
+<body>
+
+<header class="app-header"></header>
+
+<div class="page-layout">
+  <aside>
+    <div class="aside-head">
+      <div class="search-wrap">
+        <i data-lucide="search" class="icon icon-search"></i>
+        <input class="input" id="search" placeholder="Buscar marca / modelo..." />
+      </div>
+      <button class="icon-btn" id="btn-upload" title="Importar JSON" aria-label="Importar">
+        <i data-lucide="upload" class="icon"></i>
+      </button>
+      <button class="icon-btn" id="btn-new" title="Novo código vazio" aria-label="Novo">
+        <i data-lucide="plus" class="icon"></i>
+      </button>
+    </div>
+    <input type="file" id="file-input" accept=".json,application/json" style="display: none;" multiple />
+    <div id="list"></div>
+  </aside>
+
+  <main class="editor-main">
+    <div id="empty" class="empty">
+      <i data-lucide="file-code-2" class="icon"></i>
+      <div>Selecione um código na lista</div>
+    </div>
+    <div id="editor-area" style="display: none; flex-direction: column; height: 100%;">
+      <div class="editor-head">
+        <h2 id="file-name"></h2>
+        <div class="mode-tabs">
+          <button id="mode-visual" class="active" data-mode="visual">Visual</button>
+          <button id="mode-json" data-mode="json">JSON</button>
+        </div>
+        <span class="status-chip" id="valid-chip">
+          <i data-lucide="check" class="icon" style="width:12px;height:12px;"></i>
+          <span id="valid-text">JSON válido</span>
+        </span>
+      </div>
+      <div class="editor-wrap">
+        <div id="visual-pane" class="visual"></div>
+        <textarea id="editor" class="editor" spellcheck="false" placeholder="Conteúdo JSON..." style="display:none"></textarea>
+      </div>
+      <div class="editor-foot">
+        <div id="foot-info"></div>
+        <div class="right">
+          <button class="btn btn-danger" id="btn-delete"><i data-lucide="trash-2" class="icon"></i>Remover</button>
+          <button class="btn" id="btn-reset"><i data-lucide="rotate-ccw" class="icon"></i>Reverter</button>
+          <button class="btn btn-primary" id="btn-save"><i data-lucide="save" class="icon"></i>Salvar</button>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="toast" id="toast"><i data-lucide="info" class="icon"></i><span id="toast-msg"></span></div>
+
+<script>
+HomeCore.mountHeader({ icon: 'library', title: 'Biblioteca IR', active: 'library' });
+
+let library = [];
+let selectedId = null;
+let originalContent = '';
+let dirty = false;
+let mode = 'visual';        // 'visual' | 'json'
+let parsed = null;          // estado parseado em uso pelo modo visual
+let activeOp = null;        // operationMode atualmente selecionado (climate)
+let activeSwing = null;     // swingMode atualmente selecionado (climate)
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, opts);
+  const ct = r.headers.get('content-type') || '';
+  const body = ct.includes('json') ? await r.json() : await r.text();
+  if (!r.ok) throw new Error((body && body.error) || r.statusText);
+  return body;
+}
+
+function toast(msg, type = '') {
+  const t = document.getElementById('toast');
+  document.getElementById('toast-msg').textContent = msg;
+  const iconEl = t.querySelector('[data-lucide]') || t.querySelector('svg');
+  if (iconEl) iconEl.setAttribute('data-lucide', type === 'ok' ? 'check-circle-2' : type === 'err' ? 'alert-circle' : 'info');
+  t.className = 'toast show ' + type;
+  HomeCore.refreshIcons();
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => (t.className = 'toast ' + type), 2800);
+}
+
+function esc(s) { return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
+
+// ─── Detecção de tipo ───
+function inferType(j) {
+  if (j.device_type) return j.device_type;
+  if (j.minTemperature != null && j.maxTemperature != null) return 'climate';
+  if (j.commands && Object.values(j.commands).every((v) => typeof v === 'string' || v == null)) return 'media_player';
+  return 'remote';
+}
+
+// ─── Lista ───
+async function loadLibrary() {
+  const res = await api('api/ir/library');
+  library = res.codes.sort((a, b) => {
+    const A = `${a.manufacturer || ''} ${(a.models||[]).join(',')}`;
+    const B = `${b.manufacturer || ''} ${(b.models||[]).join(',')}`;
+    return A.localeCompare(B);
+  });
+  renderList();
+}
+
+function renderList() {
+  const q = document.getElementById('search').value.toLowerCase();
+  const filtered = library.filter((c) => {
+    if (!q) return true;
+    const hay = `${c.manufacturer || ''} ${(c.models||[]).join(' ')} ${c.id}`.toLowerCase();
+    return hay.includes(q);
+  });
+  const el = document.getElementById('list');
+  if (!filtered.length) {
+    el.innerHTML = '<div class="empty" style="padding:40px;"><i data-lucide="search-x" class="icon"></i><div>Nenhum resultado</div></div>';
+    HomeCore.refreshIcons();
+    return;
+  }
+  el.innerHTML = filtered.map((c) => {
+    const models = (c.models || []).filter(Boolean).join(', ');
+    const brand = c.manufacturer || '(sem fabricante)';
+    const title = models ? `${brand} — ${models}` : brand;
+    const iconMap = { climate: 'thermometer-snowflake', media_player: 'tv', remote: 'radio' };
+    const tintMap = { climate: 'tint-info', media_player: 'tint-warn', remote: 'tint-accent' };
+    const icon = iconMap[c.device_type] || 'file-code-2';
+    const tint = tintMap[c.device_type] || 'tint-accent';
+    return `
+    <div class="code-item ${c.id === selectedId ? 'selected' : ''}" data-id="${esc(c.id)}">
+      <div class="m-tile sm ${tint}"><i data-lucide="${icon}" class="icon"></i></div>
+      <div class="info">
+        <div class="title">${esc(title)}</div>
+        <div class="meta">
+          <span class="badge ${esc(c.device_type)}">${esc(c.device_type)}</span>
+          <span>#${esc(c.id)}</span>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  el.querySelectorAll('.code-item').forEach((e) => {
+    e.addEventListener('click', () => selectItem(e.dataset.id));
+  });
+  HomeCore.refreshIcons();
+}
+
+async function selectItem(id) {
+  if (dirty && !confirm('Alterações não salvas serão descartadas. Continuar?')) return;
+  selectedId = id;
+  renderList();
+  try {
+    const raw = await api(`api/ir/library/${id}/raw`);
+    originalContent = typeof raw === 'string' ? raw : JSON.stringify(raw, null, 2);
+    document.getElementById('empty').style.display = 'none';
+    document.getElementById('editor-area').style.display = 'flex';
+    document.getElementById('file-name').textContent = `${id}.json`;
+    document.getElementById('editor').value = originalContent;
+    parsed = JSON.parse(originalContent);
+    activeOp = null; activeSwing = null;
+    dirty = false;
+    setMode(mode);
+  } catch (e) { toast(e.message, 'err'); }
+}
+
+// ─── Modo (Visual / JSON) ───
+function setMode(m) {
+  mode = m;
+  document.querySelectorAll('.mode-tabs button').forEach((b) => b.classList.toggle('active', b.dataset.mode === m));
+  if (m === 'json') {
+    document.getElementById('visual-pane').style.display = 'none';
+    document.getElementById('editor').style.display = 'block';
+    document.getElementById('editor').value = parsed ? JSON.stringify(parsed, null, 2) : '';
+    validateJson();
+  } else {
+    document.getElementById('editor').style.display = 'none';
+    document.getElementById('visual-pane').style.display = 'flex';
+    renderVisual();
+    validateJson();
+  }
+  updateFootInfo();
+}
+
+// ─── Render Visual ───
+function renderVisual() {
+  if (!parsed) { document.getElementById('visual-pane').innerHTML = ''; return; }
+  const t = inferType(parsed);
+  const meta = renderMeta(parsed, t);
+  const cmds = t === 'climate' ? renderClimate(parsed) : renderFlat(parsed);
+  document.getElementById('visual-pane').innerHTML = meta + cmds;
+  if (t === 'climate') bindClimate();
+  else bindFlat();
+  HomeCore.refreshIcons();
+}
+
+function renderMeta(j, t) {
+  const isClimate = t === 'climate';
+  const ro = ' readonly tabindex="-1"';
+  return `
+  <section>
+    <h3><i data-lucide="info" class="icon"></i>Informações gerais</h3>
+    <div class="meta-grid">
+      <div class="field"><label>Fabricante</label><input value="${esc(j.manufacturer || '')}"${ro} /></div>
+      <div class="field"><label>Encoding</label><input value="${esc(j.commandsEncoding || 'Base64')}"${ro} /></div>
+      <div class="field"><label>Controlador</label><input value="${esc(j.supportedController || 'Broadlink')}"${ro} /></div>
+      ${isClimate ? `
+      <div class="field"><label>Temp. mínima</label><input value="${esc(j.minTemperature ?? 16)}"${ro} /></div>
+      <div class="field"><label>Temp. máxima</label><input value="${esc(j.maxTemperature ?? 30)}"${ro} /></div>
+      <div class="field"><label>Precisão</label><input value="${esc(j.precision ?? 1)}"${ro} /></div>
+      ` : ''}
+    </div>
+    <div style="margin-top: 12px;">
+      <label style="font-size:11px;color:var(--text-muted);font-weight:500;display:block;margin-bottom:6px;">Modelos suportados</label>
+      <div class="chip-list">${renderChipsRO(j.supportedModels || [])}</div>
+    </div>
+  </section>`;
+}
+
+function renderChipsRO(arr) {
+  if (!arr.length) return '<span style="font-size:11px;color:var(--text-muted);">—</span>';
+  return arr.map((v) => `<span class="chip-tag" style="padding:4px 10px;">${esc(v)}</span>`).join('');
+}
+
+// ─── Climate ───
+function renderClimate(j) {
+  const ops = j.operationModes || [];
+  const fans = j.fanModes || [];
+  const swings = j.swingModes && j.swingModes.length ? j.swingModes : [null];
+  const tMin = +j.minTemperature || 16;
+  const tMax = +j.maxTemperature || 30;
+  const prec = +j.precision || 1;
+  const temps = [];
+  for (let t = tMin; t <= tMax; t += prec) temps.push(t);
+
+  if (!activeOp || !ops.includes(activeOp)) activeOp = ops[0] || null;
+  if (!activeSwing || !swings.includes(activeSwing)) activeSwing = swings[0];
+
+  const opTabs = ops.map((op) => `<button class="op-tab ${op === activeOp ? 'active' : ''}" data-op="${esc(op)}">${esc(op)}</button>`).join('') +
+                 `<button class="op-tab off-tab ${activeOp === '__off__' ? 'active' : ''}" data-op="__off__"><i data-lucide="power" class="icon" style="width:12px;height:12px;vertical-align:-2px"></i> Off</button>`;
+
+  let body;
+  if (activeOp === '__off__') {
+    const has = typeof j.commands?.off === 'string' && j.commands.off.length > 0;
+    body = `
+      <div style="display:flex;align-items:center;gap:12px;">
+        <span style="font-size:12px;color:var(--text-muted);">Comando único pra desligar o aparelho.</span>
+        <div class="cmd-cell ${has ? 'has' : ''}" data-cell="off" style="min-width:120px;">${has ? '<i data-lucide=\"check\" class=\"icon\"></i> Capturado' : '<i data-lucide=\"plus\" class=\"icon\"></i> Vazio'}</div>
+      </div>`;
+  } else {
+    const swingSel = swings.length > 1 && swings[0] !== null
+      ? `<div class="swing-row">Swing: <select id="swing-select">${swings.map((s) => `<option ${s === activeSwing ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select></div>`
+      : '';
+    const head = `<div class="cmd-grid" style="grid-template-columns: 110px repeat(${temps.length}, 1fr);">
+      <div class="ch"></div>${temps.map((t) => `<div class="ch">${t}°</div>`).join('')}
+      ${fans.map((f) => {
+        return `<div class="rh">${esc(f)}</div>` + temps.map((t) => {
+          const code = getClimateCmd(j, activeOp, f, activeSwing, t);
+          const has = !!code;
+          return `<div class="cmd-cell ${has ? 'has' : ''}" data-cell="${esc(activeOp)}|${esc(f)}|${esc(activeSwing||'')}|${t}">${has ? '<i data-lucide=\"check\" class=\"icon\"></i>' : '—'}</div>`;
+        }).join('');
+      }).join('')}
+    </div>`;
+    body = swingSel + `<div class="cmd-grid-scroll">${head}</div>`;
+  }
+
+  return `
+  <section>
+    <h3><i data-lucide="thermometer-snowflake" class="icon"></i>Modos & comandos</h3>
+    <div class="op-tabs">${opTabs}</div>
+    ${body}
+  </section>`;
+}
+
+function getClimateCmd(j, op, fan, swing, temp) {
+  let n = j.commands?.[op];
+  if (!n) return null;
+  if (swing && typeof n === 'object' && n[fan] && typeof n[fan] === 'object' && (swing in n[fan])) n = n[fan][swing];
+  else if (typeof n === 'object' && n[fan]) n = n[fan];
+  if (typeof n === 'string') return n;
+  if (n && typeof n === 'object' && (String(temp) in n)) return n[String(temp)];
+  return null;
+}
+
+function setClimateCmd(j, op, fan, swing, temp, value) {
+  if (!j.commands) j.commands = {};
+  if (!j.commands[op]) j.commands[op] = {};
+  if (!j.commands[op][fan]) j.commands[op][fan] = {};
+  if (swing) {
+    if (!j.commands[op][fan][swing]) j.commands[op][fan][swing] = {};
+    if (value == null || value === '') delete j.commands[op][fan][swing][String(temp)];
+    else j.commands[op][fan][swing][String(temp)] = value;
+  } else {
+    if (value == null || value === '') delete j.commands[op][fan][String(temp)];
+    else j.commands[op][fan][String(temp)] = value;
+  }
+}
+
+function bindClimate() {
+  document.querySelectorAll('.op-tab').forEach((b) => b.onclick = () => { activeOp = b.dataset.op; renderVisual(); });
+  const sw = document.getElementById('swing-select');
+  if (sw) sw.onchange = () => { activeSwing = sw.value; renderVisual(); };
+  document.querySelectorAll('.cmd-cell').forEach((c) => c.onclick = () => openCellEditor(c.dataset.cell));
+}
+
+// ─── Flat (media_player / remote) ───
+function renderFlat(j) {
+  const cmds = j.commands || {};
+  const keys = Object.keys(cmds);
+  const tiles = keys.map((k) => {
+    const has = !!cmds[k];
+    return `<div class="btn-tile ${has ? 'has' : ''}" data-key="${esc(k)}">
+      <span class="dot"></span>
+      <span class="label" style="flex:1;">${esc(k)}</span>
+    </div>`;
+  }).join('') || `<div class="empty" style="padding:30px 20px;"><i data-lucide="inbox" class="icon"></i><div>Nenhum botão cadastrado</div></div>`;
+  return `
+  <section>
+    <h3><i data-lucide="square-mouse-pointer" class="icon"></i>Botões</h3>
+    <div class="btn-grid">${tiles}</div>
+  </section>`;
+}
+
+function bindFlat() {
+  document.querySelectorAll('.btn-tile').forEach((t) => t.onclick = () => openCellEditor(t.dataset.key));
+}
+
+// ─── Modal de edição de código ───
+let cachedEmitters = null;
+async function loadEmitters() {
+  if (cachedEmitters) return cachedEmitters;
+  try {
+    const r = await api('api/ir/emitters');
+    cachedEmitters = r.emitters || [];
+  } catch { cachedEmitters = []; }
+  return cachedEmitters;
+}
+
+function macToDeviceId(mac) { return String(mac || '').replace(/[: ]/g, '').toLowerCase(); }
+
+async function openCellEditor(cellKey) {
+  const t = inferType(parsed);
+  let current = '';
+  let title = cellKey;
+  let sub = '';
+  if (t === 'climate') {
+    if (cellKey === 'off') { current = parsed.commands?.off || ''; title = 'Comando: OFF'; sub = 'Desliga o aparelho'; }
+    else {
+      const [op, fan, swing, temp] = cellKey.split('|');
+      current = getClimateCmd(parsed, op, fan, swing || null, temp) || '';
+      title = `${op} · ${fan}${swing ? ' · ' + swing : ''} · ${temp}°`;
+      sub = 'Código IR Base64';
+    }
+  } else {
+    current = parsed.commands?.[cellKey] || '';
+    title = `Botão: ${cellKey}`;
+    sub = 'Código IR Base64';
+  }
+
+  const emitters = await loadEmitters();
+  const emitterOptions = emitters.length
+    ? emitters.map((e) => `<option value="${esc(macToDeviceId(e.mac))}" ${e.live === false ? 'disabled' : ''}>${esc(e.name)}${e.live === false ? ' (offline)' : ''}</option>`).join('')
+    : '<option value="">Nenhum emissor disponível</option>';
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3>${esc(title)}</h3>
+        <div class="sub">${esc(sub)}</div>
+      </div>
+      <div class="modal-body">
+        <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:12px;">
+          <div style="flex:1;display:flex;flex-direction:column;gap:4px;">
+            <label style="font-size:11px;color:var(--text-muted);font-weight:500;">Emissor</label>
+            <select id="cell-emitter" style="padding:8px 10px;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--surface-2);color:var(--text);font:inherit;font-size:12px;">${emitterOptions}</select>
+          </div>
+          <button class="btn btn-primary" id="cell-learn" ${emitters.length ? '' : 'disabled'}>
+            <i data-lucide="radio-tower" class="icon"></i><span id="cell-learn-label">Aprender</span>
+          </button>
+        </div>
+        <label style="font-size:11px;color:var(--text-muted);font-weight:500;display:block;margin-bottom:4px;">Código (Base64)</label>
+        <textarea id="cell-code" placeholder="Cole o código Base64 ou clique em Aprender...">${esc(current)}</textarea>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" id="cell-cancel">Cancelar</button>
+        ${current ? '<button class="btn btn-danger" id="cell-clear">Limpar</button>' : ''}
+        <button class="btn btn-primary" id="cell-save">Salvar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  HomeCore.refreshIcons();
+  setTimeout(() => document.getElementById('cell-code').focus(), 50);
+
+  const close = () => overlay.remove();
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  document.getElementById('cell-cancel').onclick = close;
+  const clearBtn = document.getElementById('cell-clear');
+  if (clearBtn) clearBtn.onclick = () => {
+    writeCellValue(cellKey, '');
+    markDirty(); renderVisual();
+    close();
+  };
+  document.getElementById('cell-save').onclick = () => {
+    const v = document.getElementById('cell-code').value.trim();
+    writeCellValue(cellKey, v);
+    markDirty(); renderVisual();
+    close();
+  };
+  document.getElementById('cell-learn').onclick = async () => {
+    const sel = document.getElementById('cell-emitter');
+    const deviceId = sel.value;
+    if (!deviceId) { toast('Selecione um emissor', 'err'); return; }
+    const btn = document.getElementById('cell-learn');
+    const label = document.getElementById('cell-learn-label');
+    btn.disabled = true; label.textContent = 'Aprendendo... aponte o controle';
+    try {
+      const r = await api(`api/ir/capture/${deviceId}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ timeout: 12 }),
+      });
+      if (r.ok && r.b64) {
+        document.getElementById('cell-code').value = r.b64;
+        toast('Código capturado', 'ok');
+      } else {
+        toast(r.erro || 'Falha ao aprender', 'err');
+      }
+    } catch (e) { toast(e.message, 'err'); }
+    finally { btn.disabled = false; label.textContent = 'Aprender'; }
+  };
+}
+
+function writeCellValue(cellKey, value) {
+  const t = inferType(parsed);
+  if (t === 'climate') {
+    if (cellKey === 'off') {
+      if (!parsed.commands) parsed.commands = {};
+      if (value) parsed.commands.off = value; else delete parsed.commands.off;
+    } else {
+      const [op, fan, swing, temp] = cellKey.split('|');
+      setClimateCmd(parsed, op, fan, swing || null, temp, value);
+    }
+  } else {
+    if (!parsed.commands) parsed.commands = {};
+    parsed.commands[cellKey] = value;
+  }
+}
+
+function markDirty(silent = false) {
+  dirty = true;
+  if (!silent) updateFootInfo();
+  validateJson();
+  updateFootInfo();
+}
+
+// ─── Sync entre modos ───
+function syncFromJsonEditor() {
+  try {
+    parsed = JSON.parse(document.getElementById('editor').value);
+    return true;
+  } catch { return false; }
+}
+
+// ─── Validação / footer ───
+function validateJson() {
+  const chip = document.getElementById('valid-chip');
+  const txt = document.getElementById('valid-text');
+  const iconEl = chip.querySelector('[data-lucide]') || chip.querySelector('svg');
+  let ok = true, msg = 'JSON válido';
+  if (mode === 'json') {
+    try { JSON.parse(document.getElementById('editor').value); }
+    catch (e) { ok = false; msg = 'JSON inválido — ' + e.message.split('\n')[0]; }
+  } else if (!parsed) { ok = false; msg = 'Sem dados'; }
+  chip.className = 'status-chip ' + (ok ? 'ok' : 'err');
+  txt.textContent = msg;
+  if (iconEl) iconEl.setAttribute('data-lucide', ok ? 'check' : 'alert-triangle');
+  HomeCore.refreshIcons();
+  return ok;
+}
+
+function updateFootInfo() {
+  const text = mode === 'json'
+    ? document.getElementById('editor').value
+    : (parsed ? JSON.stringify(parsed, null, 2) : '');
+  const lines = text.split('\n').length;
+  const bytes = new Blob([text]).size;
+  const size = bytes > 1024 ? (bytes / 1024).toFixed(1) + ' KB' : bytes + ' B';
+  document.getElementById('foot-info').textContent = `${lines} linhas · ${size}${dirty ? ' · alterado' : ''}`;
+}
+
+// ─── Save / reset / delete ───
+async function save() {
+  if (!selectedId) return;
+  if (mode === 'json') {
+    if (!syncFromJsonEditor()) { toast('Corrija o JSON antes de salvar', 'err'); return; }
+  }
+  const content = JSON.stringify(parsed, null, 2);
+  try {
+    await api(`api/ir/library/${selectedId}`, { method: 'PUT', headers: { 'Content-Type': 'text/plain' }, body: content });
+    originalContent = content;
+    dirty = false;
+    toast('Salvo', 'ok');
+    updateFootInfo();
+    await loadLibrary();
+  } catch (e) { toast(e.message, 'err'); }
+}
+
+function reset() {
+  if (!dirty) return;
+  parsed = JSON.parse(originalContent);
+  document.getElementById('editor').value = originalContent;
+  dirty = false;
+  setMode(mode);
+}
+
+async function del() {
+  if (!selectedId) return;
+  if (!confirm(`Remover o código #${selectedId}?`)) return;
+  try {
+    await api(`api/ir/library/${selectedId}`, { method: 'DELETE' });
+    toast('Removido', 'ok');
+    selectedId = null; parsed = null;
+    document.getElementById('empty').style.display = 'flex';
+    document.getElementById('editor-area').style.display = 'none';
+    await loadLibrary();
+  } catch (e) { toast(e.message, 'err'); }
+}
+
+async function createNew() {
+  const type = prompt('Tipo do dispositivo: climate / media_player / remote', 'climate');
+  if (!type) return;
+  try {
+    const res = await api('api/ir/library', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ device_type: type }),
+    });
+    toast(`Criado #${res.id}`, 'ok');
+    await loadLibrary();
+    await selectItem(res.id);
+  } catch (e) { toast(e.message, 'err'); }
+}
+
+async function uploadFiles(files) {
+  let ok = 0, failed = 0;
+  let firstId = null;
+  for (const f of files) {
+    try {
+      const text = await f.text();
+      const suggested = f.name.replace(/\.json$/i, '').replace(/[^a-z0-9_-]/gi, '');
+      const res = await api('api/ir/library', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: text, suggested_id: suggested }),
+      });
+      if (!firstId) firstId = res.id;
+      ok++;
+    } catch (e) { failed++; toast(`${f.name}: ${e.message}`, 'err'); }
+  }
+  if (ok) toast(`${ok} arquivo${ok>1?'s':''} importado${ok>1?'s':''}${failed?`, ${failed} com erro`:''}`, failed ? '' : 'ok');
+  await loadLibrary();
+  if (firstId) await selectItem(firstId);
+}
+
+// ─── Bindings ───
+document.getElementById('btn-upload').onclick = () => document.getElementById('file-input').click();
+document.getElementById('file-input').addEventListener('change', async (ev) => {
+  const files = Array.from(ev.target.files || []);
+  ev.target.value = '';
+  if (files.length) await uploadFiles(files);
+});
+
+const asideEl = document.querySelector('aside');
+['dragenter', 'dragover'].forEach((e) => asideEl.addEventListener(e, (ev) => {
+  ev.preventDefault(); ev.stopPropagation();
+  asideEl.classList.add('drag-over');
+}));
+['dragleave', 'drop'].forEach((e) => asideEl.addEventListener(e, (ev) => {
+  ev.preventDefault(); ev.stopPropagation();
+  asideEl.classList.remove('drag-over');
+}));
+asideEl.addEventListener('drop', async (ev) => {
+  const files = Array.from(ev.dataTransfer.files || []).filter((f) => f.name.toLowerCase().endsWith('.json'));
+  if (files.length) await uploadFiles(files);
+});
+
+document.getElementById('search').addEventListener('input', renderList);
+document.getElementById('btn-new').onclick = createNew;
+document.getElementById('btn-save').onclick = save;
+document.getElementById('btn-reset').onclick = reset;
+document.getElementById('btn-delete').onclick = del;
+document.querySelectorAll('.mode-tabs button').forEach((b) => b.onclick = () => {
+  if (mode === 'json' && b.dataset.mode === 'visual') {
+    if (!syncFromJsonEditor()) { toast('Corrija o JSON antes de voltar pra visual', 'err'); return; }
+  }
+  setMode(b.dataset.mode);
+});
+document.getElementById('editor').addEventListener('input', () => {
+  dirty = document.getElementById('editor').value !== originalContent;
+  validateJson();
+  updateFootInfo();
+});
+
+document.addEventListener('keydown', (ev) => {
+  if ((ev.metaKey || ev.ctrlKey) && ev.key === 's') { ev.preventDefault(); save(); }
+});
+window.addEventListener('beforeunload', (ev) => { if (dirty) { ev.preventDefault(); ev.returnValue = ''; } });
+
+loadLibrary();
+</script>
+
+</body>
+</html>

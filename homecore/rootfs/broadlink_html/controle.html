@@ -1,0 +1,1054 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Controle Remoto — Homecore</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --remote-bg: #1a1a1e;
+            --remote-border: #2a2a30;
+            --remote-shadow: rgba(0,0,0,0.6);
+            --btn-surface: #2c2c32;
+            --btn-surface-hover: #38383f;
+            --btn-surface-active: #1e1e22;
+            --btn-border-top: #3a3a42;
+            --btn-border-bottom: #18181c;
+            --accent-red: #e63946;
+            --accent-red-glow: rgba(230, 57, 70, 0.35);
+            --accent-blue: #4895ef;
+            --accent-blue-glow: rgba(72, 149, 239, 0.25);
+            --accent-green: #2ec4b6;
+            --accent-amber: #f4a261;
+            --text-primary: #e8e8ec;
+            --text-secondary: #8a8a94;
+            --text-dim: #5a5a64;
+            --toast-success: #2ec4b6;
+            --toast-error: #e63946;
+            --page-bg: #0e0e10;
+            --grain-opacity: 0.03;
+        }
+
+        html {
+            height: 100%;
+            overflow-x: hidden;
+        }
+
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: var(--page-bg);
+            color: var(--text-primary);
+            min-height: 100dvh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 1rem 1rem 2rem;
+            -webkit-tap-highlight-color: transparent;
+            -webkit-user-select: none;
+            user-select: none;
+            position: relative;
+        }
+
+        /* Subtle grain texture overlay */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E");
+            opacity: var(--grain-opacity);
+            pointer-events: none;
+            z-index: 9999;
+        }
+
+        /* Ambient glow behind remote */
+        .ambient-glow {
+            position: fixed;
+            width: 300px;
+            height: 300px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(72,149,239,0.06) 0%, transparent 70%);
+            top: 30%;
+            left: 50%;
+            transform: translateX(-50%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* ─── Header ─── */
+        .header {
+            width: 100%;
+            max-width: 380px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.5rem 0 1rem;
+            z-index: 2;
+        }
+
+        .header-brand {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .header-brand .ir-icon {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-green));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            box-shadow: 0 0 12px var(--accent-blue-glow);
+        }
+
+        .header-brand span {
+            font-size: 0.85rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+        }
+
+        .header-link {
+            font-size: 0.75rem;
+            color: var(--accent-blue);
+            text-decoration: none;
+            font-weight: 500;
+            padding: 6px 12px;
+            border: 1px solid rgba(72,149,239,0.25);
+            border-radius: 20px;
+            transition: all 0.2s;
+        }
+
+        .header-link:hover {
+            background: rgba(72,149,239,0.1);
+            border-color: rgba(72,149,239,0.5);
+        }
+
+        /* ─── Device Selector ─── */
+        .device-selector {
+            width: 100%;
+            max-width: 380px;
+            margin-bottom: 1rem;
+            z-index: 2;
+            position: relative;
+        }
+
+        .device-tabs {
+            display: flex;
+            gap: 0.4rem;
+            overflow-x: auto;
+            padding: 4px;
+            background: rgba(255,255,255,0.03);
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.06);
+            scrollbar-width: none;
+        }
+
+        .device-tabs::-webkit-scrollbar { display: none; }
+
+        .device-tab {
+            flex-shrink: 0;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.25s;
+            white-space: nowrap;
+        }
+
+        .device-tab:hover {
+            color: var(--text-primary);
+            background: rgba(255,255,255,0.05);
+        }
+
+        .device-tab.active {
+            background: var(--accent-blue);
+            color: #fff;
+            box-shadow: 0 2px 10px var(--accent-blue-glow);
+        }
+
+        /* ─── Remote Body ─── */
+        .remote-wrapper {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            max-width: 340px;
+            perspective: 800px;
+        }
+
+        .remote-body {
+            background: var(--remote-bg);
+            border: 1px solid var(--remote-border);
+            border-radius: 28px 28px 40px 40px;
+            padding: 2rem 1.5rem 2.5rem;
+            box-shadow:
+                0 2px 0 0 #222226,
+                0 4px 0 0 #1a1a1e,
+                0 20px 50px var(--remote-shadow),
+                inset 0 1px 0 rgba(255,255,255,0.04);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1.2rem;
+            position: relative;
+            overflow: hidden;
+            transform: rotateX(1deg);
+            transition: transform 0.4s ease;
+        }
+
+        /* Subtle top shine */
+        .remote-body::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 10%;
+            right: 10%;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+        }
+
+        /* IR emitter indicator */
+        .ir-emitter {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #1a1a1e;
+            border: 2px solid #2a2a30;
+            position: relative;
+            margin-bottom: -0.4rem;
+        }
+
+        .ir-emitter.sending {
+            animation: ir-pulse 0.6s ease-out;
+        }
+
+        @keyframes ir-pulse {
+            0% { box-shadow: 0 0 0 0 var(--accent-red-glow); border-color: var(--accent-red); }
+            100% { box-shadow: 0 0 0 14px transparent; border-color: #2a2a30; }
+        }
+
+        /* ─── Button Sections ─── */
+        .section {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.6rem;
+        }
+
+        .section-label {
+            font-size: 0.6rem;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: var(--text-dim);
+            font-weight: 500;
+        }
+
+        .section-divider {
+            width: 60%;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent);
+            margin: 0.3rem 0;
+        }
+
+        /* ─── Buttons Base ─── */
+        .rc-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: none;
+            cursor: pointer;
+            font-family: 'DM Sans', sans-serif;
+            font-weight: 500;
+            transition: all 0.15s ease;
+            position: relative;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .rc-btn:active {
+            transform: scale(0.93) translateY(1px);
+        }
+
+        .rc-btn.sending {
+            animation: btn-flash 0.3s ease-out;
+        }
+
+        @keyframes btn-flash {
+            0% { filter: brightness(1.8); }
+            100% { filter: brightness(1); }
+        }
+
+        /* Power button */
+        .btn-power {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: linear-gradient(145deg, #c0232f, var(--accent-red));
+            color: #fff;
+            font-size: 1.4rem;
+            box-shadow:
+                0 3px 0 0 #a01f28,
+                0 5px 15px var(--accent-red-glow),
+                inset 0 1px 0 rgba(255,255,255,0.15);
+        }
+
+        .btn-power:active {
+            box-shadow:
+                0 1px 0 0 #a01f28,
+                0 2px 8px var(--accent-red-glow);
+        }
+
+        /* Standard round buttons */
+        .btn-round {
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            background: linear-gradient(145deg, var(--btn-surface-hover), var(--btn-surface));
+            color: var(--text-primary);
+            font-size: 0.7rem;
+            letter-spacing: 0.02em;
+            box-shadow:
+                0 2px 0 0 var(--btn-border-bottom),
+                0 4px 8px rgba(0,0,0,0.3),
+                inset 0 1px 0 var(--btn-border-top);
+        }
+
+        .btn-round:active {
+            background: var(--btn-surface-active);
+            box-shadow:
+                0 1px 0 0 var(--btn-border-bottom),
+                inset 0 1px 3px rgba(0,0,0,0.3);
+        }
+
+        /* Rectangular buttons */
+        .btn-rect {
+            padding: 10px 18px;
+            border-radius: 10px;
+            background: linear-gradient(145deg, var(--btn-surface-hover), var(--btn-surface));
+            color: var(--text-primary);
+            font-size: 0.7rem;
+            box-shadow:
+                0 2px 0 0 var(--btn-border-bottom),
+                0 4px 8px rgba(0,0,0,0.3),
+                inset 0 1px 0 var(--btn-border-top);
+        }
+
+        .btn-rect:active {
+            background: var(--btn-surface-active);
+            box-shadow:
+                0 1px 0 0 var(--btn-border-bottom),
+                inset 0 1px 3px rgba(0,0,0,0.3);
+        }
+
+        /* Small pill buttons */
+        .btn-pill {
+            padding: 8px 14px;
+            border-radius: 16px;
+            background: linear-gradient(145deg, var(--btn-surface-hover), var(--btn-surface));
+            color: var(--text-secondary);
+            font-size: 0.65rem;
+            box-shadow:
+                0 2px 0 0 var(--btn-border-bottom),
+                0 3px 6px rgba(0,0,0,0.2),
+                inset 0 1px 0 var(--btn-border-top);
+        }
+
+        .btn-pill:active {
+            background: var(--btn-surface-active);
+        }
+
+        /* Volume / Channel row */
+        .vol-ch-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            gap: 1rem;
+        }
+
+        .vol-ch-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+        .vol-ch-group .group-label {
+            font-size: 0.55rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 0.2rem;
+        }
+
+        .btn-vol-ch {
+            width: 52px;
+            height: 40px;
+            border-radius: 10px;
+            background: linear-gradient(145deg, var(--btn-surface-hover), var(--btn-surface));
+            color: var(--text-primary);
+            font-size: 0.9rem;
+            font-weight: 700;
+            box-shadow:
+                0 2px 0 0 var(--btn-border-bottom),
+                0 4px 8px rgba(0,0,0,0.3),
+                inset 0 1px 0 var(--btn-border-top);
+        }
+
+        .btn-vol-ch:active {
+            background: var(--btn-surface-active);
+            box-shadow:
+                0 1px 0 0 var(--btn-border-bottom),
+                inset 0 1px 3px rgba(0,0,0,0.3);
+        }
+
+        /* D-pad */
+        .dpad-container {
+            position: relative;
+            width: 170px;
+            height: 170px;
+        }
+
+        .dpad-center {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: linear-gradient(145deg, #3a3a42, var(--btn-surface));
+            color: var(--text-primary);
+            font-size: 0.65rem;
+            font-weight: 700;
+            box-shadow:
+                0 2px 4px rgba(0,0,0,0.4),
+                inset 0 1px 0 rgba(255,255,255,0.08);
+            z-index: 2;
+        }
+
+        .dpad-btn {
+            position: absolute;
+            background: linear-gradient(145deg, var(--btn-surface-hover), var(--btn-surface));
+            color: var(--text-primary);
+            font-size: 1.1rem;
+            box-shadow:
+                0 2px 0 0 var(--btn-border-bottom),
+                0 4px 8px rgba(0,0,0,0.25),
+                inset 0 1px 0 var(--btn-border-top);
+        }
+
+        .dpad-btn:active {
+            background: var(--btn-surface-active);
+        }
+
+        .dpad-up {
+            top: 0; left: 50%; transform: translateX(-50%);
+            width: 54px; height: 54px;
+            border-radius: 14px 14px 6px 6px;
+        }
+        .dpad-down {
+            bottom: 0; left: 50%; transform: translateX(-50%);
+            width: 54px; height: 54px;
+            border-radius: 6px 6px 14px 14px;
+        }
+        .dpad-left {
+            left: 0; top: 50%; transform: translateY(-50%);
+            width: 54px; height: 54px;
+            border-radius: 14px 6px 6px 14px;
+        }
+        .dpad-right {
+            right: 0; top: 50%; transform: translateY(-50%);
+            width: 54px; height: 54px;
+            border-radius: 6px 14px 14px 6px;
+        }
+
+        /* Number grid */
+        .number-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.5rem;
+            width: 100%;
+            max-width: 200px;
+        }
+
+        .btn-number {
+            height: 44px;
+            border-radius: 10px;
+            background: linear-gradient(145deg, var(--btn-surface-hover), var(--btn-surface));
+            color: var(--text-primary);
+            font-size: 1rem;
+            font-weight: 500;
+            font-family: 'JetBrains Mono', monospace;
+            box-shadow:
+                0 2px 0 0 var(--btn-border-bottom),
+                0 3px 6px rgba(0,0,0,0.25),
+                inset 0 1px 0 var(--btn-border-top);
+        }
+
+        .btn-number:active {
+            background: var(--btn-surface-active);
+            box-shadow:
+                0 1px 0 0 var(--btn-border-bottom),
+                inset 0 1px 3px rgba(0,0,0,0.3);
+        }
+
+        /* Generic buttons grid */
+        .generic-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.5rem;
+            width: 100%;
+        }
+
+        .generic-grid .btn-rect {
+            width: 100%;
+            text-align: center;
+            font-size: 0.65rem;
+            padding: 12px 6px;
+            word-break: break-word;
+        }
+
+        /* Control row */
+        .control-row {
+            display: flex;
+            gap: 0.5rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        /* ─── Empty State ─── */
+        .empty-state {
+            text-align: center;
+            padding: 3rem 2rem;
+        }
+
+        .empty-state .empty-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            opacity: 0.4;
+        }
+
+        .empty-state h2 {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .empty-state p {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: 1.5rem;
+            line-height: 1.5;
+        }
+
+        .empty-state a {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.7rem 1.5rem;
+            background: var(--accent-blue);
+            color: #fff;
+            text-decoration: none;
+            border-radius: 10px;
+            font-weight: 500;
+            font-size: 0.85rem;
+            box-shadow: 0 4px 14px var(--accent-blue-glow);
+            transition: all 0.2s;
+        }
+
+        .empty-state a:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px var(--accent-blue-glow);
+        }
+
+        /* ─── Loading ─── */
+        .loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+            padding: 3rem;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+
+        .loading-spinner {
+            width: 32px;
+            height: 32px;
+            border: 3px solid var(--btn-surface);
+            border-top-color: var(--accent-blue);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* ─── Toast ─── */
+        .toast-container {
+            position: fixed;
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            pointer-events: none;
+        }
+
+        .toast {
+            padding: 0.7rem 1.2rem;
+            border-radius: 10px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            animation: toast-in 0.3s ease-out, toast-out 0.3s ease-in 2s forwards;
+            white-space: nowrap;
+            pointer-events: auto;
+        }
+
+        .toast-success {
+            background: rgba(46, 196, 182, 0.15);
+            border: 1px solid rgba(46, 196, 182, 0.3);
+            color: var(--toast-success);
+        }
+
+        .toast-error {
+            background: rgba(230, 57, 70, 0.15);
+            border: 1px solid rgba(230, 57, 70, 0.3);
+            color: var(--toast-error);
+        }
+
+        @keyframes toast-in {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes toast-out {
+            from { opacity: 1; }
+            to { opacity: 0; transform: translateY(-5px); }
+        }
+
+        /* ─── Fade in ─── */
+        .fade-in {
+            animation: fadeUp 0.5s ease-out both;
+        }
+
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ─── Responsive ─── */
+        @media (max-width: 380px) {
+            .remote-body { padding: 1.5rem 1.2rem 2rem; }
+            .dpad-container { width: 150px; height: 150px; }
+            .dpad-up, .dpad-down, .dpad-left, .dpad-right { width: 48px; height: 48px; }
+            .dpad-center { width: 44px; height: 44px; }
+        }
+
+        @media (min-width: 500px) {
+            body { padding: 2rem; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="ambient-glow"></div>
+
+<header class="header fade-in">
+    <div class="header-brand">
+        <div class="ir-icon">&#8227;</div>
+        <span>Homecore</span>
+    </div>
+    <a href="index.html" class="header-link">+ Capturar</a>
+</header>
+
+<div class="device-selector fade-in" style="animation-delay:0.05s">
+    <div class="device-tabs" id="device-tabs"></div>
+</div>
+
+<div class="remote-wrapper fade-in" style="animation-delay:0.1s">
+    <div class="remote-body" id="remote-body">
+        <div class="loading" id="loading-indicator">
+            <div class="loading-spinner"></div>
+            Carregando dispositivos...
+        </div>
+    </div>
+</div>
+
+<div class="toast-container" id="toast-container"></div>
+
+<script>
+(function() {
+    'use strict';
+
+    let allDevices = {};
+    let currentDevice = null;
+
+    // ─── Button Classification ───
+    const BUTTON_PATTERNS = {
+        power: /^(ligar|desligar|power|on.?off|liga.?desliga)$/i,
+        volUp: /^(vol\+|vol ?up|volume\+|volume ?mais)$/i,
+        volDown: /^(vol-|vol ?down|volume-|volume ?menos)$/i,
+        chUp: /^(ch\+|ch ?up|canal\+|canal ?mais|prog\+)$/i,
+        chDown: /^(ch-|ch ?down|canal-|canal ?menos|prog-)$/i,
+        mute: /^(mute|mudo|sem ?som)$/i,
+        tempUp: /^(temp\+|temperatura\+|temp ?mais|temperatura ?mais)$/i,
+        tempDown: /^(temp-|temperatura-|temp ?menos|temperatura ?menos)$/i,
+        up: /^(cima|up|seta.?cima)$/i,
+        down: /^(baixo|down|seta.?baixo)$/i,
+        left: /^(esquerda|left|seta.?esquerda)$/i,
+        right: /^(direita|right|seta.?direita)$/i,
+        ok: /^(ok|enter|confirmar|select)$/i,
+        menu: /^(menu|home|inicio)$/i,
+        back: /^(voltar|back|return|retornar)$/i,
+        input: /^(input|source|entrada|fonte|hdmi)$/i,
+        number: /^(\d)$/,
+    };
+
+    function classify(name) {
+        for (const [type, regex] of Object.entries(BUTTON_PATTERNS)) {
+            if (regex.test(name)) return type;
+        }
+        return 'generic';
+    }
+
+    // ─── Haptic ───
+    function haptic(ms) {
+        try { navigator.vibrate && navigator.vibrate(ms || 15); } catch(e) {}
+    }
+
+    // ─── Toast ───
+    function toast(message, type) {
+        const container = document.getElementById('toast-container');
+        const el = document.createElement('div');
+        el.className = 'toast toast-' + type;
+        el.textContent = message;
+        container.appendChild(el);
+        setTimeout(() => el.remove(), 2500);
+    }
+
+    // ─── Send Command ───
+    async function sendCommand(btn, codigo_b64) {
+        haptic(20);
+        btn.classList.add('sending');
+
+        const emitter = document.getElementById('ir-emitter');
+        if (emitter) {
+            emitter.classList.remove('sending');
+            void emitter.offsetWidth;
+            emitter.classList.add('sending');
+        }
+
+        setTimeout(() => btn.classList.remove('sending'), 300);
+
+        try {
+            const body = new URLSearchParams();
+            body.append('codigo_b64', codigo_b64);
+
+            const resp = await fetch('/cgi-bin/enviar.py', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: body
+            });
+
+            const data = await resp.json();
+            if (data.ok) {
+                toast('Comando enviado', 'success');
+            } else {
+                toast(data.erro || 'Erro desconhecido', 'error');
+            }
+        } catch(e) {
+            toast('Falha na conexao', 'error');
+        }
+    }
+
+    // ─── Create Button Element ───
+    function createBtn(item, cssClass, label) {
+        const btn = document.createElement('button');
+        btn.className = 'rc-btn ' + cssClass;
+        btn.innerHTML = label || item.botao;
+        btn.title = item.botao;
+        btn.addEventListener('click', () => sendCommand(btn, item.codigo_b64));
+        return btn;
+    }
+
+    // ─── Render Remote ───
+    function renderRemote(deviceKey) {
+        currentDevice = deviceKey;
+        const buttons = allDevices[deviceKey] || [];
+        const body = document.getElementById('remote-body');
+        body.innerHTML = '';
+
+        // Classify all buttons
+        const classified = {};
+        const generics = [];
+
+        buttons.forEach(item => {
+            const type = classify(item.botao);
+            if (type === 'generic') {
+                generics.push(item);
+            } else if (type === 'number') {
+                if (!classified.numbers) classified.numbers = [];
+                classified.numbers.push(item);
+            } else {
+                classified[type] = item;
+            }
+        });
+
+        // IR emitter dot
+        const emitter = document.createElement('div');
+        emitter.className = 'ir-emitter';
+        emitter.id = 'ir-emitter';
+        body.appendChild(emitter);
+
+        // ── Power section ──
+        if (classified.power) {
+            const section = makeSection('');
+            const powerBtn = createBtn(classified.power, 'btn-power', '&#9211;');
+            section.appendChild(powerBtn);
+            body.appendChild(section);
+        }
+
+        // ── Top controls row (mute, input, menu, back) ──
+        const topControls = [];
+        ['input', 'mute', 'menu', 'back'].forEach(k => {
+            if (classified[k]) topControls.push(classified[k]);
+        });
+        if (topControls.length) {
+            const row = document.createElement('div');
+            row.className = 'control-row';
+            topControls.forEach(item => {
+                row.appendChild(createBtn(item, 'btn-pill', item.botao));
+            });
+            body.appendChild(row);
+        }
+
+        // ── D-Pad ──
+        const hasDpad = classified.up || classified.down || classified.left || classified.right || classified.ok;
+        if (hasDpad) {
+            body.appendChild(makeDivider());
+            const section = makeSection('');
+            const dpad = document.createElement('div');
+            dpad.className = 'dpad-container';
+
+            if (classified.up) {
+                dpad.appendChild(createBtn(classified.up, 'dpad-btn dpad-up rc-btn', '&#9650;'));
+            }
+            if (classified.down) {
+                dpad.appendChild(createBtn(classified.down, 'dpad-btn dpad-down rc-btn', '&#9660;'));
+            }
+            if (classified.left) {
+                dpad.appendChild(createBtn(classified.left, 'dpad-btn dpad-left rc-btn', '&#9664;'));
+            }
+            if (classified.right) {
+                dpad.appendChild(createBtn(classified.right, 'dpad-btn dpad-right rc-btn', '&#9654;'));
+            }
+            if (classified.ok) {
+                dpad.appendChild(createBtn(classified.ok, 'dpad-center rc-btn', 'OK'));
+            }
+
+            section.appendChild(dpad);
+            body.appendChild(section);
+        }
+
+        // ── Volume / Channel / Temp ──
+        const hasVol = classified.volUp || classified.volDown;
+        const hasCh = classified.chUp || classified.chDown;
+        const hasTemp = classified.tempUp || classified.tempDown;
+
+        if (hasVol || hasCh || hasTemp) {
+            body.appendChild(makeDivider());
+            const row = document.createElement('div');
+            row.className = 'vol-ch-row';
+
+            if (hasVol) {
+                const grp = document.createElement('div');
+                grp.className = 'vol-ch-group';
+                grp.innerHTML = '<span class="group-label">Volume</span>';
+                if (classified.volUp) grp.appendChild(createBtn(classified.volUp, 'btn-vol-ch rc-btn', '+'));
+                if (classified.volDown) grp.appendChild(createBtn(classified.volDown, 'btn-vol-ch rc-btn', '−'));
+                row.appendChild(grp);
+            }
+
+            if (classified.mute && !topControls.length) {
+                // Mute between vol and ch if not already placed
+                const muteWrap = document.createElement('div');
+                muteWrap.style.cssText = 'display:flex;align-items:center;';
+                muteWrap.appendChild(createBtn(classified.mute, 'btn-round rc-btn', 'Mudo'));
+                row.appendChild(muteWrap);
+            }
+
+            if (hasCh) {
+                const grp = document.createElement('div');
+                grp.className = 'vol-ch-group';
+                grp.innerHTML = '<span class="group-label">Canal</span>';
+                if (classified.chUp) grp.appendChild(createBtn(classified.chUp, 'btn-vol-ch rc-btn', '&#9650;'));
+                if (classified.chDown) grp.appendChild(createBtn(classified.chDown, 'btn-vol-ch rc-btn', '&#9660;'));
+                row.appendChild(grp);
+            }
+
+            if (hasTemp) {
+                const grp = document.createElement('div');
+                grp.className = 'vol-ch-group';
+                grp.innerHTML = '<span class="group-label">Temp</span>';
+                if (classified.tempUp) grp.appendChild(createBtn(classified.tempUp, 'btn-vol-ch rc-btn', '&#9650;'));
+                if (classified.tempDown) grp.appendChild(createBtn(classified.tempDown, 'btn-vol-ch rc-btn', '&#9660;'));
+                row.appendChild(grp);
+            }
+
+            body.appendChild(row);
+        }
+
+        // ── Number Grid ──
+        if (classified.numbers && classified.numbers.length) {
+            body.appendChild(makeDivider());
+            const section = makeSection('');
+            const grid = document.createElement('div');
+            grid.className = 'number-grid';
+
+            // Sort 1-9, then 0
+            classified.numbers.sort((a, b) => {
+                const na = parseInt(a.botao), nb = parseInt(b.botao);
+                if (na === 0) return 1;
+                if (nb === 0) return -1;
+                return na - nb;
+            });
+
+            classified.numbers.forEach(item => {
+                grid.appendChild(createBtn(item, 'btn-number rc-btn', item.botao));
+            });
+
+            section.appendChild(grid);
+            body.appendChild(section);
+        }
+
+        // ── Generic Buttons ──
+        if (generics.length) {
+            body.appendChild(makeDivider());
+            const section = makeSection('Outros');
+            const grid = document.createElement('div');
+            grid.className = 'generic-grid';
+            generics.forEach(item => {
+                grid.appendChild(createBtn(item, 'btn-rect rc-btn', item.botao));
+            });
+            section.appendChild(grid);
+            body.appendChild(section);
+        }
+
+        // If no buttons at all
+        if (!buttons.length) {
+            body.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-icon">&#128274;</div>
+                    <h2>Sem botoes</h2>
+                    <p>Este dispositivo ainda nao tem codigos capturados.</p>
+                    <a href="index.html">Capturar Codigos</a>
+                </div>`;
+        }
+
+        // Update tabs
+        document.querySelectorAll('.device-tab').forEach(tab => {
+            tab.classList.toggle('active', tab.dataset.key === deviceKey);
+        });
+    }
+
+    function makeSection(label) {
+        const section = document.createElement('div');
+        section.className = 'section';
+        if (label) {
+            const lbl = document.createElement('span');
+            lbl.className = 'section-label';
+            lbl.textContent = label;
+            section.appendChild(lbl);
+        }
+        return section;
+    }
+
+    function makeDivider() {
+        const div = document.createElement('div');
+        div.className = 'section-divider';
+        return div;
+    }
+
+    // ─── Render Tabs ───
+    function renderTabs(devices) {
+        const tabsEl = document.getElementById('device-tabs');
+        tabsEl.innerHTML = '';
+
+        const keys = Object.keys(devices);
+        keys.forEach(key => {
+            const tab = document.createElement('button');
+            tab.className = 'device-tab';
+            tab.dataset.key = key;
+            tab.textContent = key.replace(/_/g, ' ');
+            tab.addEventListener('click', () => {
+                haptic(10);
+                renderRemote(key);
+            });
+            tabsEl.appendChild(tab);
+        });
+    }
+
+    // ─── Init ───
+    async function init() {
+        try {
+            const resp = await fetch('/cgi-bin/listar.py');
+            const data = await resp.json();
+
+            if (data.erro) {
+                throw new Error(data.erro);
+            }
+
+            allDevices = data;
+            const keys = Object.keys(allDevices);
+
+            if (keys.length === 0) {
+                document.getElementById('device-tabs').parentElement.style.display = 'none';
+                document.getElementById('remote-body').innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">&#128225;</div>
+                        <h2>Nenhum dispositivo encontrado</h2>
+                        <p>Comece capturando os codigos IR do seu controle remoto para montar seu controle virtual.</p>
+                        <a href="index.html">Iniciar Captura</a>
+                    </div>`;
+                return;
+            }
+
+            renderTabs(allDevices);
+            renderRemote(keys[0]);
+
+        } catch(e) {
+            document.getElementById('remote-body').innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-icon">&#9888;</div>
+                    <h2>Erro ao carregar</h2>
+                    <p>${e.message || 'Nao foi possivel conectar ao servidor.'}</p>
+                    <a href="index.html">Capturar Codigos</a>
+                </div>`;
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', init);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,330 @@
+/* learn.css — Aprender IR. Reuse app.css design tokens (--surface, --accent, --r-md, etc).
+   Mantém os mesmos nomes de classe que o JS gera, mas redesenhados pra casar com o resto. */
+
+/* ── Tabs (top-of-content) ─────────────────────────────────────────── */
+.tab-nav {
+  display: flex; gap: 4px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-pill); padding: 4px;
+  margin-bottom: 20px; box-shadow: var(--shadow-sm);
+  overflow-x: auto;
+}
+.tab-nav .bnav-btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 8px 16px; border-radius: var(--r-pill);
+  background: transparent; border: none; cursor: pointer;
+  color: var(--text-muted); font-size: 13px; font-weight: 500;
+  transition: background-color 0.12s, color 0.12s;
+  font-family: inherit; white-space: nowrap;
+}
+.tab-nav .bnav-btn:hover { background: var(--surface-2); color: var(--text); }
+.tab-nav .bnav-btn.active { background: var(--accent-weak); color: var(--accent); font-weight: 600; }
+.tab-nav .bnav-btn .icon { width: 15px; height: 15px; }
+
+/* Views (somente uma visível por vez) */
+.view { display: none; }
+.view.active { display: block; }
+.devices-grid {
+  display: grid; gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+}
+
+/* ── Card overrides (algumas variantes específicas usadas pelo JS) ── */
+.card-header {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.card-header > div:first-child { min-width: 0; }
+.card .card-title {
+  font-size: 14px; font-weight: 600; color: var(--text);
+  letter-spacing: -0.005em;
+}
+.card .card-subtitle {
+  font-size: 12px; color: var(--text-muted); margin-top: 2px;
+}
+.card-body { padding: 14px 16px; }
+
+/* Os cards usados pelo JS não têm header/body separados — tudo dentro do card.
+   Por isso, .card padding 14px (vem do app.css) já cobre. Só preciso refinar headers. */
+
+/* ── Forms ──────────────────────────────────────────────────────────── */
+.form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.form-label {
+  font-size: 11px; font-weight: 600;
+  color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em;
+}
+.form-input, .form-select {
+  padding: 10px 13px;
+  border: 1px solid var(--border); border-radius: var(--r-md);
+  background: var(--surface-2); color: var(--text);
+  font-size: 13px; outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s;
+  font-family: inherit; width: 100%;
+}
+.form-input:hover, .form-select:hover { background: var(--surface-3); }
+.form-input:focus, .form-select:focus {
+  border-color: var(--accent); background: var(--surface);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+/* ── Helpers ────────────────────────────────────────────────────────── */
+.flex-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.flex-1 { flex: 1; min-width: 0; }
+.mb-1 { margin-bottom: 12px; }
+.mt-1 { margin-top: 12px; }
+.text-1 { color: var(--text); }
+.text-2 { color: var(--text-muted); }
+.text-3 { color: var(--text-subtle); }
+.text-sm { font-size: 12px; }
+
+/* ── Buttons (suplementa app.css) ──────────────────────────────────── */
+.btn-full { width: 100%; justify-content: center; }
+/* .btn-icon e .btn-star reaproveitam o padrao .icon-btn.sm da plataforma
+   (30x30, borda + surface, hover do tema) pra ficar em harmonia visual. */
+.btn-icon, .btn-star {
+  width: 30px; height: 30px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-icon:hover, .btn-star:hover { background: var(--accent); color: white; border-color: var(--accent); }
+.btn-icon:active, .btn-star:active { transform: scale(0.95); }
+.btn-icon.danger:hover { background: var(--err); border-color: var(--err); }
+
+/* ── Empty state ────────────────────────────────────────────────────── */
+.empty {
+  text-align: center; padding: 40px 20px;
+  color: var(--text-muted);
+}
+/* Empty states "soltos" no view (sem card envolvendo) ocupam o espaço
+   disponível e centralizam vertical+horizontalmente */
+.view > .empty,
+#remote-container > .empty {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  min-height: 60vh;
+}
+.empty-icon {
+  width: 32px; height: 32px;
+  display: block; margin: 0 auto 10px;
+  opacity: 0.5; color: var(--text-muted);
+  font-size: 28px; line-height: 1;        /* fallback p/ texto/emoji se houver */
+}
+.empty h3 { margin: 0 0 4px; font-size: 14px; color: var(--text); font-weight: 600; }
+.empty p { margin: 0; font-size: 12px; }
+/* Status icons grandes (capture flow feedback) */
+.status-icon { width: 40px; height: 40px; margin-bottom: 8px; }
+.status-icon.ok   { color: var(--ok); }
+.status-icon.warn { color: var(--warn); }
+.status-icon.err  { color: var(--err); }
+/* Star toggle: filled vs outline */
+.btn-star.is-fav .lucide { fill: currentColor; color: var(--on-light); }
+.device-icon .lucide, .fav-icon .lucide, .sir-file-icon .lucide {
+  width: 16px; height: 16px; stroke-width: 1.75;
+}
+/* Icones em botoes de acao seguem o tamanho padrao do .icon-btn.sm (14px) */
+.btn-star .lucide, .btn-star .icon,
+.btn-icon .lucide, .btn-icon .icon {
+  width: 14px; height: 14px; stroke-width: 1.75;
+}
+
+/* ── Badges ─────────────────────────────────────────────────────────── */
+.badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10px; padding: 3px 9px; border-radius: 999px;
+  text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700;
+}
+.badge-blue  { color: var(--accent); background: var(--accent-weak); }
+.badge-green { color: var(--ok);     background: var(--ok-weak); }
+
+/* Tipo de dispositivo */
+.kind-pill {
+  display: inline-flex; align-items: center;
+  font-size: 9.5px; padding: 2px 7px; border-radius: 999px;
+  text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700;
+  vertical-align: 2px; margin-left: 6px;
+  border: 1px solid transparent;
+}
+.kind-broadlink { color: var(--accent); background: var(--accent-weak); }
+.kind-gw3       { color: #8b5cf6; background: color-mix(in srgb, #8b5cf6 14%, transparent); }
+.kind-gw8       { color: #f59e0b; background: color-mix(in srgb, #f59e0b 14%, transparent); }
+
+/* ── Chips (multi-select para modos/fans/swings) ──────────────────── */
+.chip-group { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px; border-radius: 999px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  font-size: 12px; color: var(--text-muted); cursor: pointer;
+  transition: all 0.12s; user-select: none;
+}
+.chip:hover { background: var(--surface-3); color: var(--text); }
+.chip:has(input:checked) {
+  background: var(--accent-weak); border-color: var(--accent);
+  color: var(--accent); font-weight: 600;
+}
+.chip input { display: none; }
+
+/* ── Internal nav-tabs (SmartIR / Generic toggle dentro de Capturar) ── */
+.nav-tabs {
+  display: inline-flex; gap: 0;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: var(--r-md); padding: 3px;
+}
+.nav-tab {
+  padding: 7px 16px; border-radius: calc(var(--r-md) - 3px);
+  background: transparent; border: none; cursor: pointer;
+  color: var(--text-muted); font-size: 12px; font-weight: 500;
+  transition: all 0.12s; font-family: inherit;
+}
+.nav-tab.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); }
+
+/* ── Device list (devices view) ─────────────────────────────────────── */
+.device-item, .fav-item, .sir-file-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 12px; margin-bottom: 6px;
+  background: var(--surface-2); border: 1px solid transparent;
+  border-radius: var(--r-md); cursor: pointer;
+  transition: background-color 0.12s, border-color 0.12s;
+}
+.device-item:hover, .fav-item:hover, .sir-file-item:hover {
+  background: var(--surface-3); border-color: var(--border-strong);
+}
+.device-item.selected, .sir-file-item.selected {
+  background: var(--accent-weak); border-color: var(--accent);
+}
+.device-item.is-fav, .fav-item.is-fav { /* highlights when marked */ }
+
+.device-icon, .fav-icon, .sir-file-icon {
+  width: 36px; height: 36px; flex-shrink: 0; border-radius: var(--r-md);
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--accent-weak); color: var(--accent);
+  font-size: 18px;
+}
+.device-info, .fav-info, .sir-file-info { flex: 1; min-width: 0; }
+.device-name, .fav-name {
+  font-size: 13px; font-weight: 600; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.device-detail, .fav-detail, .sir-file-detail {
+  font-size: 11px; color: var(--text-muted); font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  margin-top: 1px;
+}
+.fav-actions { display: flex; gap: 4px; }
+.btn-star.is-fav { color: var(--on-light); border-color: var(--on-light); }
+.btn-star.is-fav:hover { background: var(--on-light); color: white; border-color: var(--on-light); }
+
+/* ── Wizard de captura ──────────────────────────────────────────────── */
+.wizard-progress {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 12px 14px;
+}
+.wizard-progress-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 8px;
+}
+.wizard-progress-bar {
+  height: 6px; background: var(--surface-3); border-radius: 999px;
+  overflow: hidden;
+}
+.wizard-progress-fill {
+  height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-strong));
+  transition: width 0.25s; border-radius: 999px;
+}
+
+.wiz-selection-summary {
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: var(--r-md); padding: 10px 12px;
+  font-size: 13px; color: var(--text);
+  margin-top: 10px; min-height: 38px;
+  display: flex; align-items: center;
+}
+.wizard-mode-status {
+  display: flex; flex-wrap: wrap; gap: 6px;
+}
+.captured-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 9px; border-radius: 999px;
+  background: var(--ok-weak); color: var(--ok);
+  font-size: 11px; font-weight: 600;
+}
+
+.learn-status {
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: var(--r-md); padding: 14px 16px;
+  font-size: 13px; color: var(--text);
+}
+.learn-animation, .learn-pulse {
+  display: inline-block; width: 10px; height: 10px;
+  border-radius: 50%; background: var(--accent);
+  animation: learn-pulse 1.2s ease-in-out infinite;
+  margin-right: 8px; vertical-align: middle;
+}
+@keyframes learn-pulse {
+  0%, 100% { opacity: 0.3; transform: scale(0.8); }
+  50%      { opacity: 1;   transform: scale(1.2); }
+}
+
+/* Botão "OFF" do wizard de AC (estado de captura) */
+.off-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px; border-radius: var(--r-pill);
+  background: var(--surface-2); border: 1px solid var(--border);
+  font-size: 12px; cursor: pointer; transition: all 0.12s;
+}
+.off-btn.captured { background: var(--ok-weak); border-color: var(--ok); color: var(--ok); }
+.off-btn.selected { background: var(--accent-weak); border-color: var(--accent); color: var(--accent); }
+
+.rc-label {
+  font-size: 11px; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600;
+  margin: 12px 0 6px;
+}
+
+/* ── Modal (overlay + card) — reaproveitando padrão do app ────────── */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.55);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 60; backdrop-filter: blur(2px);
+}
+.modal {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-lg); box-shadow: var(--shadow-lg);
+  width: min(440px, calc(100% - 2rem)); padding: 20px 22px;
+}
+
+/* ── Toast ──────────────────────────────────────────────────────────── */
+.toast-box {
+  position: fixed; bottom: 1.25rem; right: 1.25rem;
+  display: flex; flex-direction: column; gap: 8px; z-index: 70;
+}
+.toast {
+  background: var(--surface); border: 1px solid var(--border);
+  border-left: 3px solid var(--ok); box-shadow: var(--shadow-md);
+  padding: 10px 14px; border-radius: var(--r-md);
+  font-size: 13px; max-width: 360px;
+  animation: toast-in 0.2s ease-out;
+}
+.toast-err  { border-left-color: var(--err); }
+.toast-warn { border-left-color: var(--warn); }
+@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+/* ── Remote control (view-control) ─────────────────────────────────── */
+#remote-container {
+  display: grid; gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+}
+/* Quando só tem .empty dentro, vira block pra .empty ocupar largura total */
+#remote-container:has(> .empty:only-child) { display: block; }
+#remote-container .btn { width: 100%; justify-content: center; padding: 14px 16px; }
+
+/* esconder o header interno antigo do .app que não faz mais sentido */
+.app > header.header { display: none; }
+.app { max-width: none; padding: 0; margin: 0; }

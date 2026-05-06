@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>HomeCore — Dispositivos IR</title>
+<base href="./" />
+<link rel="stylesheet" href="assets/app.css" />
+<script src="assets/lucide.min.js"></script>
+<script src="assets/app.js"></script>
+<style>
+  /* ─── Page specific ─── */
+  .ir-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    box-shadow: var(--shadow-sm);
+    padding: 14px 16px;
+    transition: box-shadow 0.15s, border-color 0.15s;
+    position: relative;
+  }
+  .ir-card:hover { box-shadow: var(--shadow-md); border-color: var(--border-strong); }
+  .ir-card.on {
+    background: color-mix(in srgb, var(--on-light) 5%, var(--surface));
+    border-color: color-mix(in srgb, var(--on-light) 25%, var(--border));
+  }
+
+  .ir-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .ir-head .m-content { min-width: 0; }
+  .ir-big-temp {
+    display: flex; align-items: baseline; gap: 6px;
+    margin: 2px 0 2px;
+  }
+  .ir-temp-val { font-size: 28px; font-weight: 600; letter-spacing: -0.03em; line-height: 1; }
+  .ambient-pill {
+    display: inline-flex; align-items: center; gap: 4px;
+    margin-left: auto; padding: 4px 10px;
+    border-radius: var(--r-pill);
+    background: var(--info-weak); color: var(--info);
+    font-size: 12px; font-weight: 600;
+  }
+  .ambient-pill .icon { width: 13px; height: 13px; }
+
+  .sensor-readings { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+  .reading-pill {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 4px 10px; border-radius: var(--r-pill);
+    background: var(--surface-2); color: var(--text-muted);
+    font-size: 12px; font-weight: 500;
+  }
+  .reading-pill.has-value { color: var(--text); background: var(--info-weak); }
+  .ir-temp-unit { font-size: 12px; color: var(--text-muted); }
+  .ir-mode-label {
+    margin-left: auto;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 3px 10px;
+    border-radius: var(--r-pill);
+  }
+  .ir-mode-label.cool { color: var(--info); background: var(--info-weak); }
+  .ir-mode-label.heat { color: var(--err); background: var(--err-weak); }
+  .ir-mode-label.dry  { color: var(--info); background: var(--info-weak); }
+  .ir-mode-label.fan_only { color: var(--accent); background: var(--accent-weak); }
+  .ir-mode-label.auto { color: var(--accent); background: var(--accent-weak); }
+  .ir-mode-label.off  { color: var(--text-subtle); background: var(--surface-2); }
+
+  .controls-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+  .chip {
+    padding: 6px 12px;
+    border-radius: var(--r-pill);
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.12s;
+    text-transform: capitalize;
+  }
+  .chip.active { background: var(--accent); border-color: var(--accent); color: white; }
+  .chip:hover:not(.active) { background: var(--surface-3); color: var(--text); }
+
+  .stepper {
+    display: inline-flex; gap: 2px; align-items: center; padding: 3px;
+    border-radius: var(--r-pill); background: var(--surface-2);
+  }
+  .stepper button {
+    width: 30px; height: 30px; border-radius: var(--r-pill);
+    border: 0; background: transparent; cursor: pointer; color: var(--text-muted);
+    display: inline-flex; align-items: center; justify-content: center;
+    transition: background 0.12s;
+  }
+  .stepper button:hover { background: var(--surface-3); color: var(--text); }
+  .stepper .val { font-size: 13px; font-weight: 600; padding: 0 10px; color: var(--text); }
+
+  .card-body-row { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; gap: 10px; }
+  .card-body-row .select { padding: 8px 12px; font-size: 12px; border-radius: var(--r-pill); min-width: 120px; }
+  .fan-select {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 0 10px 0 12px;
+    border-radius: var(--r-pill);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+  }
+  .fan-select .icon { width: 16px; height: 16px; flex-shrink: 0; }
+  .fan-select .select {
+    background: transparent; border: 0; padding: 8px 4px; min-width: 80px;
+    font-size: 12px; color: var(--text); cursor: pointer;
+  }
+  .fan-select .select:focus { outline: none; }
+</style>
+</head>
+<body>
+
+<header class="app-header"></header>
+
+<main class="app-main" id="areas"></main>
+
+<!-- Modal edit/create -->
+<div class="modal-backdrop" id="modal-edit">
+  <div class="modal">
+    <div class="modal-head">
+      <h2 id="me-title">Novo dispositivo IR</h2>
+      <p>Associa um código da biblioteca SmartIR a um emissor Broadlink.</p>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>ID único</label>
+        <input class="input" id="f-id" placeholder="ex: ac_quarto" />
+        <span class="hint">Usado no MQTT. Sem espaços ou acentos.</span>
+      </div>
+      <div class="field">
+        <label>Nome amigável</label>
+        <input class="input" id="f-name" placeholder="ex: Ar-Condicionado do Quarto" />
+      </div>
+      <div class="field">
+        <label>Cômodo</label>
+        <select class="select" id="f-area"></select>
+        <span class="hint">Cadastre cômodos em <a href="areas.html">Cômodos</a>.</span>
+      </div>
+      <div class="field">
+        <label>Código (biblioteca)</label>
+        <select class="select" id="f-code"></select>
+        <span class="hint" id="f-code-hint"></span>
+      </div>
+      <div class="field">
+        <label>Emissor Broadlink</label>
+        <select class="select" id="f-emitter"></select>
+        <span class="hint" id="f-emitter-hint"></span>
+      </div>
+      <div class="field" id="f-temp-sensor-field" style="display: none;">
+        <label>Sensor de temperatura</label>
+        <select class="select" id="f-temp-sensor"></select>
+        <div id="f-temp-sensor-readings" class="sensor-readings" style="display:none">
+          <span class="reading-pill" id="f-temp-sensor-temp">—</span>
+          <span class="reading-pill" id="f-temp-sensor-hum">—</span>
+          <span class="reading-pill" id="f-temp-sensor-batt">—</span>
+        </div>
+        <span class="hint">Vincula um sensor Zigbee pra mostrar a temperatura ambiente no card do AC (HA + HomeCore).</span>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <div class="left">
+        <button class="btn btn-danger" id="me-delete" style="display: none;">
+          <i data-lucide="trash-2" class="icon"></i> Remover
+        </button>
+      </div>
+      <div class="right">
+        <button class="btn" id="me-cancel">Cancelar</button>
+        <button class="btn btn-primary" id="me-save"><i data-lucide="check" class="icon"></i> Salvar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><i data-lucide="info" class="icon"></i><span id="toast-msg"></span></div>
+
+<script>
+HomeCore.mountHeader({
+  icon: 'radio',
+  title: 'Dispositivos IR',
+  active: 'devices',
+  actions: `<button class="btn btn-primary" id="btn-new"><i data-lucide="plus" class="icon"></i>Novo dispositivo</button>`,
+});
+
+let devices = [];
+let library = [];
+let emitters = [];
+let areaState = { floors: [], rooms: [] };
+let tempSensors = []; // Zigbee devices que expõem `temperature`
+let zigbeeStateByFn = new Map(); // friendly_name → state (pra mostrar leitura ao vivo no card)
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...opts });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+
+function toast(msg, type = '') {
+  const t = document.getElementById('toast');
+  document.getElementById('toast-msg').textContent = msg;
+  const iconEl = t.querySelector('[data-lucide]') || t.querySelector('svg');
+  if (iconEl) {
+    const nextIcon = type === 'ok' ? 'check-circle-2' : type === 'err' ? 'alert-circle' : 'info';
+    iconEl.setAttribute('data-lucide', nextIcon);
+  }
+  t.className = 'toast show ' + type;
+  HomeCore.refreshIcons();
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => (t.className = 'toast ' + type), 2800);
+}
+
+function esc(s) { return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
+
+async function loadAll() {
+  const [d, l, e, a, ts, zs] = await Promise.all([
+    api('api/ir/devices'),
+    api('api/ir/library'),
+    api('api/ir/emitters'),
+    api('api/areas'),
+    api('api/zigbee/temp-sensors').catch(() => ({ sensors: [] })),
+    api('api/zigbee/state').catch(() => ({ devices: [] })),
+  ]);
+  devices = d.devices; library = l.codes; emitters = e.emitters; areaState = a;
+  tempSensors = ts.sensors || [];
+  zigbeeStateByFn = new Map((zs.devices || []).map((x) => [x.friendly_name, x.state]));
+  render();
+}
+
+function render() {
+  const container = document.getElementById('areas');
+  if (!devices.length) {
+    container.innerHTML = `
+      <div class="empty">
+        <i data-lucide="radio" class="icon"></i>
+        <div>Nenhum dispositivo IR cadastrado</div>
+        <button class="btn btn-primary" onclick="openEdit(null)"><i data-lucide="plus" class="icon"></i>Novo dispositivo</button>
+      </div>`;
+    HomeCore.refreshIcons();
+    return;
+  }
+  const byArea = {};
+  for (const d of devices) (byArea[d.area || 'Sem área'] = byArea[d.area || 'Sem área'] || []).push(d);
+  const areas = Object.keys(byArea).sort();
+  container.innerHTML = areas.map((a) => `
+    <section class="area-block">
+      <h2 class="area-title">${esc(a)}<span class="count">${byArea[a].length}</span></h2>
+      <div class="grid">${byArea[a].map(cardHtml).join('')}</div>
+    </section>
+  `).join('');
+  container.querySelectorAll('[data-action]').forEach((el) => {
+    const ev = el.tagName === 'SELECT' ? 'change' : 'click';
+    el.addEventListener(ev, onCardAction);
+  });
+  container.querySelectorAll('.gear').forEach((el) => {
+    el.addEventListener('click', () => openEdit(el.dataset.id));
+  });
+  HomeCore.refreshIcons();
+}
+
+function cardHtml(d) {
+  if (d.type === 'climate') return climateCard(d);
+  return genericCard(d);
+}
+
+function climateCard(d) {
+  const cm = d.code_meta || {};
+  const s = d.state || {};
+  const isOff = s.hvac_mode === 'off' || s.hvac_mode == null;
+  const modes = cm.operationModes || ['cool','heat','dry','fan_only','auto'];
+  const fans = cm.fanModes || ['auto'];
+  const min = cm.minTemperature ?? 16;
+  const tileClass = isOff ? 'm-tile tint-accent' : 'm-tile filled-on';
+  const sub = isOff ? (cm.manufacturer || 'AC') : `${s.fan_mode || 'auto'} · ${(cm.manufacturer || '')}`;
+
+  // Sensor de temperatura ambiente (opcional)
+  const sensorState = d.temp_sensor ? zigbeeStateByFn.get(d.temp_sensor) : null;
+  const ambientTemp = sensorState?.temperature;
+  const ambientHum  = sensorState?.humidity;
+  const sensorPill = ambientTemp != null
+    ? `<span class="ambient-pill" title="${esc(d.temp_sensor)}">
+         <i data-lucide="thermometer" class="icon"></i>${ambientTemp}°C${ambientHum != null ? ` · ${ambientHum}%` : ''}
+       </span>`
+    : '';
+
+  return `
+    <article class="ir-card ${isOff ? '' : 'on'}">
+      <div class="ir-head">
+        <div class="${tileClass}"><i data-lucide="thermometer-snowflake" class="icon"></i></div>
+        <div class="m-content">
+          <div class="m-title">${esc(d.name)}</div>
+          <div class="m-sub">${esc(sub)}</div>
+        </div>
+        ${sensorPill}
+        <button type="button" class="icon-btn gear" data-id="${esc(d.id)}" title="Editar" aria-label="Editar">
+          <i data-lucide="settings" class="icon"></i>
+        </button>
+      </div>
+      <div class="controls-row">
+        <button class="chip ${isOff ? 'active' : ''}" data-action="mode" data-id="${esc(d.id)}" data-value="off">off</button>
+        ${modes.map((m) => `<button class="chip ${s.hvac_mode === m ? 'active' : ''}" data-action="mode" data-id="${esc(d.id)}" data-value="${esc(m)}">${m}</button>`).join('')}
+      </div>
+      <div class="card-body-row">
+        <div class="stepper">
+          <button data-action="temp-down" data-id="${esc(d.id)}" title="−"><i data-lucide="minus" class="icon"></i></button>
+          <span class="val">${s.temperature ?? min}°</span>
+          <button data-action="temp-up" data-id="${esc(d.id)}" title="+"><i data-lucide="plus" class="icon"></i></button>
+        </div>
+        <label class="fan-select">
+          <i data-lucide="fan" class="icon"></i>
+          <select class="select" data-action="fan" data-id="${esc(d.id)}">
+            ${fans.map((f) => `<option value="${esc(f)}" ${s.fan_mode === f ? 'selected' : ''}>${f}</option>`).join('')}
+          </select>
+        </label>
+      </div>
+    </article>
+  `;
+}
+
+function genericCard(d) {
+  const s = d.state || {};
+  const isOn = s.power === 'on';
+  const icon = d.type === 'media_player' ? 'tv' : 'radio';
+  const tileClass = isOn ? 'm-tile filled-accent' : 'm-tile tint-accent';
+  const sub = d.type === 'media_player'
+    ? (isOn ? 'ligado' : 'desligado')
+    : 'controle remoto';
+  const modelText = `${d.code_meta?.manufacturer || ''}${d.code_meta?.models ? ' · ' + (d.code_meta.models||[]).join(', ') : ''}`;
+  return `
+    <article class="ir-card ${isOn ? 'on' : ''}">
+      <div class="ir-head">
+        <div class="${tileClass}"><i data-lucide="${icon}" class="icon"></i></div>
+        <div class="m-content">
+          <div class="m-title">${esc(d.name)}</div>
+          <div class="m-sub">${esc(sub)}${modelText ? ' · ' + esc(modelText) : ''}</div>
+        </div>
+        <button class="icon-btn sm gear" data-id="${esc(d.id)}" title="Editar" aria-label="Editar">
+          <i data-lucide="settings" class="icon"></i>
+        </button>
+      </div>
+      <div class="controls-row">
+        <button class="chip" data-action="cmd" data-id="${esc(d.id)}" data-value="on">Ligar</button>
+        <button class="chip" data-action="cmd" data-id="${esc(d.id)}" data-value="off">Desligar</button>
+        ${d.type === 'media_player' ? `
+          <button class="chip" data-action="cmd" data-id="${esc(d.id)}" data-value="volume_up">Vol +</button>
+          <button class="chip" data-action="cmd" data-id="${esc(d.id)}" data-value="volume_down">Vol −</button>
+          <button class="chip" data-action="cmd" data-id="${esc(d.id)}" data-value="mute">Mute</button>
+        ` : ''}
+      </div>
+    </article>
+  `;
+}
+
+async function onCardAction(ev) {
+  const el = ev.currentTarget;
+  const id = el.dataset.id;
+  const action = el.dataset.action;
+  const value = el.dataset.value;
+  try {
+    if (action === 'mode') {
+      await api(`api/ir/devices/${id}/state`, { method: 'POST', body: JSON.stringify({ hvac_mode: value }) });
+    } else if (action === 'temp-up' || action === 'temp-down') {
+      const d = devices.find((x) => x.id === id);
+      const cm = d.code_meta || {};
+      const cur = d.state.temperature || cm.minTemperature || 22;
+      const step = cm.precision || 1;
+      const next = action === 'temp-up' ? Math.min(cm.maxTemperature || 30, cur + step) : Math.max(cm.minTemperature || 16, cur - step);
+      await api(`api/ir/devices/${id}/state`, { method: 'POST', body: JSON.stringify({ temperature: next }) });
+    } else if (action === 'fan') {
+      await api(`api/ir/devices/${id}/state`, { method: 'POST', body: JSON.stringify({ fan_mode: el.value }) });
+    } else if (action === 'cmd') {
+      await api(`api/ir/devices/${id}/command`, { method: 'POST', body: JSON.stringify({ command: value }) });
+    }
+    await loadAll();
+  } catch (e) { toast(e.message, 'err'); }
+}
+
+// ── Edit modal ──
+let editingId = null;
+
+function openEdit(id) {
+  editingId = id;
+  const d = id ? devices.find((x) => x.id === id) : null;
+  document.getElementById('me-title').textContent = d ? `Editar ${d.name}` : 'Novo dispositivo IR';
+  document.getElementById('f-id').value = d?.id || '';
+  document.getElementById('f-id').disabled = !!d;
+  document.getElementById('f-name').value = d?.name || '';
+
+  const areaSel = document.getElementById('f-area');
+  const floors = (areaState.floors || []).slice().sort((a, b) => (a.level ?? 0) - (b.level ?? 0));
+  const byFloor = new Map();
+  const orphans = [];
+  for (const r of (areaState.rooms || [])) {
+    if (r.floorId && floors.find((f) => f.id === r.floorId)) {
+      const arr = byFloor.get(r.floorId) || [];
+      arr.push(r); byFloor.set(r.floorId, arr);
+    } else { orphans.push(r); }
+  }
+  const optHtml = (r) =>
+    `<option value="${esc(r.name)}" ${r.name === d?.area ? 'selected' : ''}>${esc(r.name)}</option>`;
+  const parts = ['<option value="">— sem cômodo —</option>'];
+  for (const f of floors) {
+    const list = byFloor.get(f.id);
+    if (!list || !list.length) continue;
+    parts.push(`<optgroup label="${esc(f.name)}">${list.map(optHtml).join('')}</optgroup>`);
+  }
+  if (orphans.length) {
+    parts.push(`<optgroup label="Sem andar">${orphans.map(optHtml).join('')}</optgroup>`);
+  }
+  areaSel.innerHTML = parts.join('');
+
+  const codeSel = document.getElementById('f-code');
+  codeSel.innerHTML = library.map((c) => {
+    const models = (c.models || []).filter(Boolean).join(', ');
+    const label = `[${c.device_type}] ${c.manufacturer || ''}${models ? ' — ' + models : ''}`;
+    return `<option value="${esc(c.id)}" ${c.id === d?.code_file ? 'selected' : ''}>${esc(label)}</option>`;
+  }).join('');
+  updateCodeHint();
+  codeSel.onchange = updateCodeHint;
+
+  renderEmitterDropdown(d?.emitter_mac);
+  renderTempSensorField(d);
+
+  document.getElementById('me-delete').style.display = d ? 'inline-flex' : 'none';
+  document.getElementById('modal-edit').classList.add('show');
+  HomeCore.refreshIcons();
+}
+
+function renderTempSensorField(d) {
+  const codeSel = document.getElementById('f-code');
+  const code = library.find((c) => c.id === codeSel.value);
+  const isClimate = code?.device_type === 'climate';
+  const wrap = document.getElementById('f-temp-sensor-field');
+  const sel = document.getElementById('f-temp-sensor');
+  if (!isClimate) {
+    wrap.style.display = 'none';
+    return;
+  }
+  wrap.style.display = '';
+  const opts = ['<option value="">— sem sensor —</option>']
+    .concat(tempSensors.map((s) => {
+      const label = `${s.display_name || s.friendly_name}${s.area ? ` (${s.area})` : ''}`;
+      const selAttr = s.friendly_name === d?.temp_sensor ? 'selected' : '';
+      return `<option value="${esc(s.friendly_name)}" ${selAttr}>${esc(label)}</option>`;
+    }));
+  sel.innerHTML = opts.join('');
+  sel.onchange = updateTempSensorReadings;
+  updateTempSensorReadings();
+}
+
+function updateTempSensorReadings() {
+  const sel = document.getElementById('f-temp-sensor');
+  const wrap = document.getElementById('f-temp-sensor-readings');
+  const fn = sel.value;
+  if (!fn) { wrap.style.display = 'none'; return; }
+  const s = tempSensors.find((x) => x.friendly_name === fn);
+  if (!s) { wrap.style.display = 'none'; return; }
+  wrap.style.display = '';
+  const tEl = document.getElementById('f-temp-sensor-temp');
+  const hEl = document.getElementById('f-temp-sensor-hum');
+  const bEl = document.getElementById('f-temp-sensor-batt');
+  const set = (el, label, val, unit) => {
+    if (val == null) { el.textContent = `${label} —`; el.classList.remove('has-value'); }
+    else { el.textContent = `${label} ${val}${unit}`; el.classList.add('has-value'); }
+  };
+  set(tEl, 'Temp.',   s.temperature, '°C');
+  set(hEl, 'Umidade', s.humidity, '%');
+  set(bEl, 'Bateria', s.battery, '%');
+}
+
+function updateCodeHint() {
+  const sel = document.getElementById('f-code');
+  const c = library.find((x) => x.id === sel.value);
+  const el = document.getElementById('f-code-hint');
+  // re-render temp-sensor field quando troca o code (pode virar climate ou sair de climate)
+  const editing = editingId ? devices.find((x) => x.id === editingId) : null;
+  renderTempSensorField(editing);
+  if (!c) { el.textContent = ''; return; }
+  const parts = [];
+  if (c.device_type === 'climate') {
+    parts.push(`modos: ${(c.operationModes || []).join(', ')}`);
+    parts.push(`${c.minTemperature}–${c.maxTemperature}°C`);
+    if (c.fanModes) parts.push(`vento: ${c.fanModes.join('/')}`);
+  }
+  el.textContent = parts.join(' · ');
+}
+
+function renderEmitterDropdown(selectedMac) {
+  const emiSel = document.getElementById('f-emitter');
+  const visible = emitters.filter((e) => e.live !== false || e.mac === selectedMac);
+  if (!visible.length) {
+    emiSel.innerHTML = '<option value="">(nenhum online — clique no botão de refresh)</option>';
+  } else {
+    emiSel.innerHTML = visible.map((e) => {
+      const tag = e.live === false ? ' (offline)' : '';
+      return `<option value="${esc(e.mac)}" ${e.mac === selectedMac ? 'selected' : ''}>${esc(e.name)} — ${esc(e.host)}${tag}</option>`;
+    }).join('');
+  }
+  const live = emitters.filter((e) => e.live).length;
+  const off = emitters.filter((e) => e.live === false).length;
+  document.getElementById('f-emitter-hint').textContent =
+    `${live} online${off ? ` · ${off} oculto${off > 1 ? 's' : ''}` : ''}`;
+}
+
+async function saveEdit() {
+  const id = document.getElementById('f-id').value.trim();
+  const name = document.getElementById('f-name').value.trim();
+  const area = document.getElementById('f-area').value.trim();
+  const code_file = document.getElementById('f-code').value;
+  const emitter_mac = document.getElementById('f-emitter').value;
+  const temp_sensor = document.getElementById('f-temp-sensor').value || null;
+  if (!id || !name || !code_file || !emitter_mac) { toast('Preencha todos os campos', 'err'); return; }
+  try {
+    await api('api/ir/devices', { method: 'POST', body: JSON.stringify({ id, name, area, code_file, emitter_mac, temp_sensor }) });
+    document.getElementById('modal-edit').classList.remove('show');
+    toast('Dispositivo salvo', 'ok');
+    await loadAll();
+  } catch (e) { toast(e.message, 'err'); }
+}
+
+async function deleteDev() {
+  if (!editingId) return;
+  if (!confirm('Remover este dispositivo IR? Ele some do HA também.')) return;
+  try {
+    await api(`api/ir/devices/${editingId}`, { method: 'DELETE' });
+    document.getElementById('modal-edit').classList.remove('show');
+    toast('Dispositivo removido', 'ok');
+    await loadAll();
+  } catch (e) { toast(e.message, 'err'); }
+}
+
+document.getElementById('btn-new').onclick = () => openEdit(null);
+document.getElementById('me-cancel').onclick = () => document.getElementById('modal-edit').classList.remove('show');
+document.getElementById('me-save').onclick = saveEdit;
+document.getElementById('me-delete').onclick = deleteDev;
+document.getElementById('modal-edit').addEventListener('click', (e) => {
+  if (e.target.id === 'modal-edit') document.getElementById('modal-edit').classList.remove('show');
+});
+
+// spinner keyframes
+const style = document.createElement('style');
+style.textContent = '@keyframes spin { from { transform: rotate(0); } to { transform: rotate(360deg); } }';
+document.head.appendChild(style);
+
+loadAll();
+setInterval(() => {
+  if (document.getElementById('modal-edit').classList.contains('show')) return;
+  loadAll();
+}, 8000);
+</script>
+
+</body>
+</html>

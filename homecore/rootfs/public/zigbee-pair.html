@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>HomeCore — Parear Zigbee</title>
+<base href="./" />
+<link rel="stylesheet" href="assets/app.css" />
+<link rel="stylesheet" href="assets/wifi.css" />
+<script src="assets/lucide.min.js"></script>
+<script src="assets/app.js"></script>
+<style>
+  .pair-stats {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px; margin-bottom: 20px;
+  }
+  .pair-stat {
+    padding: 14px 16px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--r-lg); display: flex; flex-direction: column; gap: 4px;
+    box-shadow: var(--shadow-sm);
+  }
+  .pair-stat .label {
+    font-size: 10px; font-weight: 600; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 0.08em;
+  }
+  .pair-stat .value { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; }
+  .pair-stat .value.ok { color: var(--ok); }
+  .pair-stat .value.warn { color: var(--warn); }
+  .pair-stat .value.err { color: var(--err); }
+
+  .pair-bar {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    padding: 14px 16px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--r-lg); margin-bottom: 20px; box-shadow: var(--shadow-sm);
+  }
+  .pair-bar .duration-group { display: inline-flex; gap: 4px; padding: 3px; background: var(--surface-2); border-radius: var(--r-pill); }
+  .pair-bar .duration-group button {
+    border: 0; background: transparent; padding: 6px 14px; border-radius: var(--r-pill);
+    font-size: 12px; font-weight: 600; color: var(--text-muted); cursor: pointer;
+    transition: all 0.12s;
+  }
+  .pair-bar .duration-group button.active { background: var(--accent); color: white; }
+  .pair-bar .duration-group button:hover:not(.active) { background: var(--surface-3); color: var(--text); }
+  .pair-bar .countdown { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--accent); }
+  .pair-bar .spacer { flex: 1; }
+
+  .empty-state .pulse {
+    width: 60px; height: 60px; border-radius: 50%; background: var(--accent); opacity: 0.6;
+    margin: 0 auto 14px;
+    animation: pulse-grow 1.4s ease-in-out infinite;
+  }
+  @keyframes pulse-grow { 0%, 100% { transform: scale(1); opacity: 0.6; } 50% { transform: scale(1.18); opacity: 0.3; } }
+
+  .new-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--r-lg); padding: 14px 16px; box-shadow: var(--shadow-sm);
+    display: flex; align-items: center; gap: 14px;
+    animation: slide-in .3s ease;
+  }
+  .new-card.fresh { border-color: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 15%, transparent); }
+  @keyframes slide-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .new-card .ico {
+    width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0;
+    background: color-mix(in srgb, var(--accent) 15%, transparent);
+    color: var(--accent);
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .new-card .info { flex: 1; min-width: 0; }
+  .new-card .info .name { font-weight: 600; font-size: 15px; }
+  .new-card .info .meta { font-size: 12px; color: var(--text-muted); margin-top: 4px; display: flex; gap: 12px; flex-wrap: wrap; }
+  .new-card .info .meta code { font-size: .92em; }
+  .new-card .actions { flex-shrink: 0; display: flex; gap: 8px; }
+
+  .new-grid { display: flex; flex-direction: column; gap: 10px; }
+</style>
+</head>
+<body>
+<header class="app-header"></header>
+<main class="app-main">
+  <div class="pair-stats">
+    <div class="pair-stat">
+      <span class="label">Bridge</span>
+      <span class="value" id="s-bridge">—</span>
+    </div>
+    <div class="pair-stat">
+      <span class="label">Pareamento</span>
+      <span class="value" id="s-pair">desligado</span>
+    </div>
+    <div class="pair-stat">
+      <span class="label">Tempo restante</span>
+      <span class="value" id="s-remaining">—</span>
+    </div>
+    <div class="pair-stat">
+      <span class="label">Pareados nessa sessão</span>
+      <span class="value" id="s-new">0</span>
+    </div>
+  </div>
+
+  <div class="pair-bar">
+    <span style="font-size:13px;color:var(--text-muted)">Duração:</span>
+    <div class="duration-group" id="dur-group">
+      <button data-sec="60">60s</button>
+      <button data-sec="120" class="active">2min</button>
+      <button data-sec="254">4min</button>
+    </div>
+    <span class="spacer"></span>
+    <span class="countdown" id="cd"></span>
+    <button class="btn btn-primary" id="btn-pair">
+      <i data-lucide="link" class="icon"></i>
+      <span class="label">Permitir pareamento</span>
+    </button>
+    <button class="btn btn-ghost" id="btn-stop" style="display:none">
+      <i data-lucide="x" class="icon"></i>Parar
+    </button>
+  </div>
+
+  <div id="results">
+    <div class="empty-state" id="empty">
+      <div class="pulse" id="pulse" style="display:none"></div>
+      <i data-lucide="link-2" class="icon" id="empty-icon"></i>
+      <div id="empty-msg">Clique em <strong>Permitir pareamento</strong> e ative o modo de pareamento no dispositivo.</div>
+      <div style="margin-top:6px;font-size:13px">Em geral, segure o botão de reset por 5–10s, ou tire o tempo de comissionamento das instruções do fabricante.</div>
+    </div>
+  </div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+HomeCore.mountHeader({
+  active: 'zigbee-pair',
+  actions: `<span class="status-chip" id="hdr-status"><span class="dot" id="br-dot"></span><span id="br-text">conectando…</span></span>`,
+});
+const styleChip = document.createElement('style');
+styleChip.textContent = `.status-chip { display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;background:var(--surface-2);font-size:11px;color:var(--text-muted); }`;
+document.head.appendChild(styleChip);
+
+(() => {
+  const sBridge = document.getElementById('s-bridge');
+  const sPair = document.getElementById('s-pair');
+  const sRemaining = document.getElementById('s-remaining');
+  const sNew = document.getElementById('s-new');
+  const cd = document.getElementById('cd');
+  const btnPair = document.getElementById('btn-pair');
+  const btnStop = document.getElementById('btn-stop');
+  const durGroup = document.getElementById('dur-group');
+  const empty = document.getElementById('empty');
+  const emptyIcon = document.getElementById('empty-icon');
+  const emptyMsg = document.getElementById('empty-msg');
+  const pulse = document.getElementById('pulse');
+  const results = document.getElementById('results');
+  const toastEl = document.getElementById('toast');
+
+  let evtCards = new Map();         // ieee → DOM card (atualiza in-place)
+  let knownIeees = new Set();       // IEEEs já no mesh quando a página abriu
+  let countdownEnd = 0;
+  let countdownTimer = null;
+  let pollTimer = null;
+  let pairStream = null;
+  let chosenSeconds = 120;
+  let grid = null;
+
+  const showToast = (msg, kind = '') => {
+    toastEl.className = 'toast show ' + kind;
+    toastEl.textContent = msg;
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(() => toastEl.classList.remove('show'), 3200);
+  };
+  const escapeHtml = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+  async function api(path, opts = {}) {
+    const r = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...opts });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || j.detail || r.statusText);
+    return j;
+  }
+
+  durGroup.querySelectorAll('button').forEach((b) => {
+    b.addEventListener('click', () => {
+      durGroup.querySelectorAll('button').forEach((x) => x.classList.remove('active'));
+      b.classList.add('active');
+      chosenSeconds = parseInt(b.dataset.sec, 10);
+    });
+  });
+
+  function setEmpty(state) {
+    if (state === 'idle') {
+      pulse.style.display = 'none';
+      emptyIcon.style.display = '';
+      emptyMsg.innerHTML = 'Clique em <strong>Permitir pareamento</strong> e ative o modo de pareamento no dispositivo.';
+    } else if (state === 'waiting') {
+      pulse.style.display = '';
+      emptyIcon.style.display = 'none';
+      emptyMsg.innerHTML = 'Aguardando dispositivo entrar no mesh…';
+    }
+  }
+
+  function ensureGrid() {
+    if (!grid) {
+      empty.style.display = 'none';
+      results.innerHTML = '';
+      grid = document.createElement('div');
+      grid.className = 'new-grid';
+      results.appendChild(grid);
+    }
+  }
+
+  function statusBadge(state) {
+    if (state === 'joined')      return '<span class="cat-badge" style="background:var(--accent-weak);color:var(--accent)">entrou no mesh</span>';
+    if (state === 'interviewing') return '<span class="cat-badge" style="background:var(--warn-weak,#fff7e0);color:var(--warn)">⏳ interviewing</span>';
+    if (state === 'success')     return '<span class="cat-badge" style="background:var(--ok-weak,#e8f7ec);color:var(--ok)">✓ pareado</span>';
+    if (state === 'failed')      return '<span class="cat-badge" style="background:var(--err-weak,#ffe7e7);color:var(--err)">✗ falhou</span>';
+    if (state === 'left')        return '<span class="cat-badge">saiu do mesh</span>';
+    return '';
+  }
+
+  function renderCard(ieee, info) {
+    const isRejoin = knownIeees.has(ieee);
+    const name = info.friendly_name || ieee;
+    const def = info.definition || {};
+    const mfr = def.vendor || '—';
+    const model = def.model || def.description || '';
+    const card = document.createElement('div');
+    card.className = 'new-card' + (info._fresh ? ' fresh' : '');
+    card.dataset.ieee = ieee;
+    card.innerHTML = `
+      <div class="ico"><i data-lucide="${isRejoin ? 'refresh-cw' : 'hexagon'}" class="icon"></i></div>
+      <div class="info">
+        <div class="name">${escapeHtml(name)} ${isRejoin ? '<span class="cat-badge" style="margin-left:6px">rejoin</span>' : ''}</div>
+        <div class="meta">
+          <span><code>${escapeHtml(ieee)}</code></span>
+          ${model ? `<span>${escapeHtml(mfr)} · ${escapeHtml(model)}</span>` : (mfr !== '—' ? `<span>${escapeHtml(mfr)}</span>` : '')}
+          ${statusBadge(info.state)}
+          ${info.supported === false ? '<span class="cat-badge" style="background:var(--warn-weak,#fff7e0);color:var(--warn)">não suportado</span>' : ''}
+        </div>
+      </div>
+      <div class="actions">
+        <a class="btn btn-primary" href="zigbee.html?cfg=${encodeURIComponent(ieee)}"><i data-lucide="settings-2" class="icon"></i>Configurar</a>
+      </div>
+    `;
+    return card;
+  }
+
+  function upsertEventCard(ieee, info) {
+    ensureGrid();
+    const prev = evtCards.get(ieee);
+    const card = renderCard(ieee, { ...info, _fresh: !prev });
+    if (prev) {
+      prev.replaceWith(card);
+    } else {
+      grid.insertBefore(card, grid.firstChild);
+      sNew.textContent = String(parseInt(sNew.textContent || '0', 10) + 1);
+      setTimeout(() => card.classList.remove('fresh'), 4000);
+    }
+    evtCards.set(ieee, card);
+    HomeCore.refreshIcons();
+  }
+
+  // Estado por IEEE: { state, friendly_name, definition, supported }
+  const trackedByIeee = new Map();
+
+  function handlePairEvent(evt) {
+    if (!evt || !evt.ieee) return;
+    const prev = trackedByIeee.get(evt.ieee) || {};
+    const next = { ...prev };
+    next.friendly_name = evt.friendly_name || prev.friendly_name || null;
+    if (evt.definition) next.definition = evt.definition;
+    if (evt.supported !== undefined) next.supported = evt.supported;
+
+    if (evt.type === 'device_joined') {
+      next.state = 'joined';
+    } else if (evt.type === 'device_interview') {
+      if (evt.status === 'started') next.state = 'interviewing';
+      else if (evt.status === 'successful') next.state = 'success';
+      else if (evt.status === 'failed') next.state = 'failed';
+    } else if (evt.type === 'device_leave') {
+      next.state = 'left';
+    } else if (evt.type === 'device_announce') {
+      // Não muda o state, mas serve como sinal de presença
+    }
+    trackedByIeee.set(evt.ieee, next);
+    upsertEventCard(evt.ieee, next);
+  }
+
+  function startPairStream() {
+    if (pairStream) { try { pairStream.close(); } catch {} }
+    const es = new EventSource('/api/zigbee/pair-stream');
+    pairStream = es;
+    ['device_joined','device_leave','device_interview','device_announce'].forEach((t) => {
+      es.addEventListener(t, (e) => {
+        try { handlePairEvent(JSON.parse(e.data)); } catch {}
+      });
+    });
+    es.onerror = () => { /* EventSource auto-reconnect */ };
+  }
+
+  function applyState(snap) {
+    sBridge.textContent = snap.bridgeState || '—';
+    const dot = document.getElementById('br-dot');
+    const txt = document.getElementById('br-text');
+    if (dot) dot.className = 'dot ' + (snap.bridgeState === 'online' ? 'ok' : 'err');
+    if (txt) txt.textContent = snap.bridgeState || '—';
+
+    const permit = !!snap.permitJoin;
+    sPair.textContent = permit ? 'ATIVO' : 'desligado';
+    sPair.className = 'value ' + (permit ? 'ok' : '');
+    btnPair.style.display = permit ? 'none' : '';
+    btnStop.style.display = permit ? '' : 'none';
+    if (!permit && countdownTimer) {
+      clearInterval(countdownTimer); countdownTimer = null;
+      cd.textContent = '';
+      sRemaining.textContent = '—';
+      sRemaining.className = 'value';
+    }
+
+    // Captura IEEEs conhecidos pra distinguir rejoin de pareamento novo
+    if (snap.devices) {
+      for (const d of snap.devices) {
+        if (d.ieee_address) knownIeees.add(d.ieee_address);
+      }
+    }
+  }
+
+  async function poll() {
+    try {
+      const snap = await api('/api/zigbee/state');
+      applyState(snap);
+    } catch (e) { /* silent */ }
+  }
+
+  function startCountdown(seconds) {
+    countdownEnd = Date.now() + seconds * 1000;
+    sRemaining.className = 'value warn';
+    if (countdownTimer) clearInterval(countdownTimer);
+    countdownTimer = setInterval(() => {
+      const left = Math.max(0, Math.round((countdownEnd - Date.now()) / 1000));
+      const m = Math.floor(left / 60), s = left % 60;
+      const txt = `${m}:${String(s).padStart(2, '0')}`;
+      sRemaining.textContent = txt;
+      cd.textContent = `restam ${txt}`;
+      if (left <= 0) {
+        clearInterval(countdownTimer); countdownTimer = null;
+        sRemaining.textContent = 'expirado';
+        cd.textContent = '';
+        // Força um poll pra refletir permitJoin=false
+        setTimeout(poll, 500);
+      }
+    }, 250);
+  }
+
+  btnPair.addEventListener('click', async () => {
+    btnPair.disabled = true;
+    try {
+      await api('/api/zigbee/permit-join', {
+        method: 'POST', body: JSON.stringify({ seconds: chosenSeconds }),
+      });
+      showToast('Pareamento aberto. Ative o dispositivo agora.', 'ok');
+      setEmpty('waiting');
+      startCountdown(chosenSeconds);
+      poll();
+    } catch (e) {
+      showToast(`Falhou: ${e.message}`, 'err');
+    } finally {
+      btnPair.disabled = false;
+    }
+  });
+
+  btnStop.addEventListener('click', async () => {
+    btnStop.disabled = true;
+    try {
+      await api('/api/zigbee/permit-join', {
+        method: 'POST', body: JSON.stringify({ seconds: 0 }),
+      });
+      showToast('Pareamento encerrado.');
+      setEmpty('idle');
+      if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+      cd.textContent = '';
+      sRemaining.textContent = '—';
+      sRemaining.className = 'value';
+      poll();
+    } catch (e) {
+      showToast(`Falhou: ${e.message}`, 'err');
+    } finally {
+      btnStop.disabled = false;
+    }
+  });
+
+  setEmpty('idle');
+  poll();
+  startPairStream();
+  pollTimer = setInterval(poll, 5000); // só atualiza permit_join + bridgeState
+  window.addEventListener('beforeunload', () => {
+    if (pollTimer) clearInterval(pollTimer);
+    if (countdownTimer) clearInterval(countdownTimer);
+    if (pairStream) { try { pairStream.close(); } catch {} }
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Ferramenta de Envio de Comandos IR - SendIR / GC</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap' );
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #f0f2f5;
+            color: #333;
+            margin: 0;
+            padding: 1em;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .container {
+            width: 100%;
+            max-width: 900px;
+            background: #fff;
+            padding: 2em;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        }
+        h1 {
+            font-size: 1.8em;
+            color: #1e3a8a;
+            margin-top: 0;
+            margin-bottom: 1em;
+            text-align: center;
+        }
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 1.5em;
+        }
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+        .full-width {
+            grid-column: 1 / -1;
+        }
+        label {
+            font-weight: 500;
+            margin-bottom: 0.5em;
+            color: #374151;
+        }
+        input, textarea {
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-family: 'Roboto', sans-serif;
+            font-size: 1em;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+        input:focus, textarea:focus {
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+            outline: none;
+        }
+        textarea {
+            height: 120px;
+            resize: vertical;
+            font-family: 'Courier New', Courier, monospace;
+        }
+        .button-container {
+            grid-column: 1 / -1;
+            display: flex;
+            justify-content: center;
+            margin-top: 1em;
+        }
+        button {
+            background-color: #2563eb;
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1.1em;
+            font-weight: 500;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #1d4ed8;
+        }
+        #status-message {
+            margin-top: 1.5em;
+            padding: 1em;
+            border-radius: 6px;
+            text-align: center;
+            font-weight: 500;
+            display: none; /* Oculto por padrão */
+        }
+        .status-success {
+            background-color: #dcfce7;
+            color: #166534;
+            display: block;
+        }
+        .status-error {
+            background-color: #fee2e2;
+            color: #991b1b;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Ferramenta de Envio de Comandos IR (SendIR / GC)</h1>
+        <div class="form-grid">
+            <div class="form-group">
+                <label for="ip">IP do Dispositivo:</label>
+                <input type="text" id="ip">
+            </div>
+            <div class="form-group">
+                <label for="serial">Serial Number:</label>
+                <input type="text" id="serial">
+            </div>
+            <div class="form-group">
+                <label for="pwd">Password (verifyCode):</label>
+                <input type="text" id="pwd">
+            </div>
+            <div class="form-group full-width">
+                <label for="c-value">Parâmetro 'c':</label>
+                <input type="text" id="c-value">
+            </div>
+            <div class="form-group full-width">
+                <label for="gc-code">Código SendIR / GC:</label>
+                <textarea id="gc-code" placeholder="Cole o código SendIR aqui (ex: 38000,1,1,...)"></textarea>
+            </div>
+            <div class="button-container">
+                <button id="send-button">📡 Enviar Comando</button>
+            </div>
+        </div>
+
+        <div id="status-message"></div>
+    </div>
+
+    <script>
+        // Seleciona os elementos do formulário
+        const ipEl = document.getElementById('ip');
+        const serialEl = document.getElementById('serial');
+        const pwdEl = document.getElementById('pwd');
+        const cEl = document.getElementById('c-value');
+        const gcCodeEl = document.getElementById('gc-code');
+        const sendButton = document.getElementById('send-button');
+        const statusMessageEl = document.getElementById('status-message');
+
+        // Função para carregar dados do localStorage
+        function loadData() {
+            ipEl.value = localStorage.getItem('sendir_ip') || '192.168.1.112';
+            serialEl.value = localStorage.getItem('sendir_serial') || 'P130-C101-A0794';
+            pwdEl.value = localStorage.getItem('sendir_pwd') || '72856898';
+            cEl.value = localStorage.getItem('sendir_c') || '1';
+            gcCodeEl.value = localStorage.getItem('sendir_gc_code') || '';
+        }
+
+        // Função para salvar dados no localStorage
+        function saveData() {
+            localStorage.setItem('sendir_ip', ipEl.value);
+            localStorage.setItem('sendir_serial', serialEl.value);
+            localStorage.setItem('sendir_pwd', pwdEl.value);
+            localStorage.setItem('sendir_c', cEl.value);
+            localStorage.setItem('sendir_gc_code', gcCodeEl.value);
+        }
+
+        // Função para enviar a requisição via POST
+        async function sendRequest() {
+            // Salva os dados atuais antes de enviar
+            saveData();
+
+            const ip = ipEl.value.trim();
+            const serial = serialEl.value.trim();
+            const pwd = pwdEl.value.trim();
+            const c = cEl.value.trim();
+            const gcCode = gcCodeEl.value.trim().replace(/\s/g, ''); // Remove espaços
+
+            if (!ip || !serial || !pwd || !c || !gcCode) {
+                statusMessageEl.textContent = '❌ Erro: Todos os campos devem ser preenchidos.';
+                statusMessageEl.className = 'status-error';
+                return;
+            }
+
+            const url = `http://${ip}/api/device/deviceDetails/smartHomeAutoHttpControl`;
+            const body = new URLSearchParams( );
+            body.append('serialNum', serial);
+            body.append('verifyCode', pwd);
+            body.append('c', c);
+            body.append('gc', gcCode);
+
+            // Limpa a mensagem de status anterior
+            statusMessageEl.style.display = 'none';
+            statusMessageEl.className = '';
+
+            try {
+                // Usa a API Fetch para enviar a requisição POST
+                await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: body,
+                    mode: 'no-cors' // Essencial para evitar erros de CORS em rede local
+                });
+
+                statusMessageEl.textContent = '✅ Comando enviado com sucesso para o dispositivo!';
+                statusMessageEl.className = 'status-success';
+
+            } catch (error) {
+                statusMessageEl.textContent = `❌ Erro ao enviar o comando. Verifique o IP e a conexão de rede. Detalhe: ${error.message}`;
+                statusMessageEl.className = 'status-error';
+            }
+        }
+
+        // Adiciona o "escutador" de evento ao botão
+        sendButton.addEventListener('click', sendRequest);
+
+        // Carrega os dados salvos quando a página é aberta
+        document.addEventListener('DOMContentLoaded', loadData);
+    </script>
+</body>
+</html>

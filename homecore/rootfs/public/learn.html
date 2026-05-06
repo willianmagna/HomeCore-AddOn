@@ -1,0 +1,1768 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>HomeCore — Aprender IR</title>
+  <base href="./" />
+  <link rel="stylesheet" href="assets/app.css" />
+  <link rel="stylesheet" href="assets/learn.css" />
+  <script src="assets/lucide.min.js"></script>
+  <script src="assets/app.js"></script>
+</head>
+<body>
+<header class="app-header"></header>
+<main class="app-main">
+
+  <!-- ═══ VIEW: Dispositivos ═══ -->
+  <div class="view active" id="view-devices">
+    <div class="devices-grid">
+      <section class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Dispositivos na rede</div>
+            <div class="card-subtitle">Encontrados via scan</div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="discoverDevices()">
+            <i data-lucide="refresh-cw" class="icon"></i>Buscar
+          </button>
+        </div>
+        <div class="card-body" id="device-list">
+          <div class="empty">
+            <i data-lucide="radio" class="empty-icon"></i>
+            <h3>Buscando dispositivos…</h3>
+            <p>Aguarde enquanto escaneamos a rede local.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Incorporados</div>
+            <div class="card-subtitle">Salvos por MAC Address</div>
+          </div>
+        </div>
+        <div class="card-body" id="favorites-list">
+          <div class="empty">
+            <i data-lucide="star" class="empty-icon"></i>
+            <h3>Nenhum dispositivo incorporado</h3>
+            <p>Clique no <i data-lucide="star" style="width:14px;height:14px;vertical-align:-2px"></i> de um dispositivo pra incorporar.</p>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- Modal: Salvar Favorito -->
+  <div class="modal-overlay" id="fav-modal" style="display:none">
+    <div class="modal">
+      <div class="card-title mb-1">Incorporar dispositivo</div>
+      <div class="form-group">
+        <label class="form-label">Nome</label>
+        <input class="form-input" id="fav-name" placeholder="Ex: Sala, Quarto, Escritório">
+      </div>
+      <div id="fav-modal-info" class="text-3 text-sm mb-1"></div>
+      <div class="flex-row">
+        <button class="btn btn-ghost flex-1" onclick="closeFavModal()">Cancelar</button>
+        <button class="btn btn-primary flex-1" onclick="saveFavorite()">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ VIEW: Capturar ═══ -->
+  <div class="view" id="view-learn">
+    <div class="nav-tabs mb-1" id="learn-mode-tabs">
+      <button class="nav-tab active" data-lmode="smartir" onclick="setLearnMode('smartir')">SmartIR</button>
+      <button class="nav-tab" data-lmode="generic" onclick="setLearnMode('generic')">Genérico</button>
+    </div>
+
+    <div id="learn-smartir">
+      <section class="card" id="sir-step1">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Arquivo SmartIR</div>
+            <div class="card-subtitle">Escolha um existente ou crie novo</div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="showNewSmartIR()">
+            <i data-lucide="plus" class="icon"></i>Novo
+          </button>
+        </div>
+        <div class="card-body" id="sir-file-list">
+          <p class="text-3 text-sm">Carregando…</p>
+        </div>
+      </section>
+
+      <section class="card" id="sir-new-form" style="display:none">
+        <div class="card-header"><div class="card-title">Novo arquivo SmartIR</div></div>
+        <div class="card-body">
+          <div class="form-group">
+            <label class="form-label">Tipo</label>
+            <select class="form-select" id="sir-type" onchange="toggleSmartIRType()">
+              <option value="climate">Climate (Ar condicionado)</option>
+              <option value="media_player">Media Player (TV, receiver)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Dispositivo Broadlink</label>
+            <select class="form-select" id="sir-broadlink"></select>
+          </div>
+          <div class="flex-row">
+            <div class="form-group flex-1">
+              <label class="form-label">Marca</label>
+              <input class="form-input" id="sir-manufacturer" placeholder="Ex: Samsung, LG">
+            </div>
+            <div class="form-group flex-1">
+              <label class="form-label">Modelo</label>
+              <input class="form-input" id="sir-model" placeholder="Ex: AR12, UN50">
+            </div>
+          </div>
+
+          <div id="sir-climate-fields">
+            <div class="flex-row">
+              <div class="form-group flex-1">
+                <label class="form-label">Temp min</label>
+                <input class="form-input" id="sir-temp-min" type="number" value="16">
+              </div>
+              <div class="form-group flex-1">
+                <label class="form-label">Temp max</label>
+                <input class="form-input" id="sir-temp-max" type="number" value="30">
+              </div>
+              <div class="form-group flex-1">
+                <label class="form-label">Precisão</label>
+                <select class="form-select" id="sir-precision">
+                  <option value="1">1 grau</option>
+                  <option value="0.5">0.5 grau</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Modos de operação</label>
+              <div class="chip-group" id="sir-modes">
+                <label class="chip"><input type="checkbox" value="cool" checked>Cool</label>
+                <label class="chip"><input type="checkbox" value="heat">Heat</label>
+                <label class="chip"><input type="checkbox" value="dry">Dry</label>
+                <label class="chip"><input type="checkbox" value="fan_only">Fan Only</label>
+                <label class="chip"><input type="checkbox" value="auto">Auto</label>
+                <label class="chip"><input type="checkbox" value="heat_cool">Heat/Cool</label>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Modos de ventilação</label>
+              <div class="chip-group" id="sir-fans">
+                <label class="chip"><input type="checkbox" value="low" checked>Low</label>
+                <label class="chip"><input type="checkbox" value="mid" checked>Mid</label>
+                <label class="chip"><input type="checkbox" value="high" checked>High</label>
+                <label class="chip"><input type="checkbox" value="auto">Auto</label>
+                <label class="chip"><input type="checkbox" value="quiet">Quiet</label>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Swing (opcional)</label>
+              <div class="chip-group" id="sir-swings">
+                <label class="chip"><input type="checkbox" value="off">Off</label>
+                <label class="chip"><input type="checkbox" value="vertical">Vertical</label>
+                <label class="chip"><input type="checkbox" value="horizontal">Horizontal</label>
+                <label class="chip"><input type="checkbox" value="both">Both</label>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex-row mt-1">
+            <button class="btn btn-ghost flex-1" onclick="cancelNewSmartIR()">Cancelar</button>
+            <button class="btn btn-primary flex-1" onclick="createSmartIR()">Criar arquivo</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="card" id="sir-capture" style="display:none">
+        <div class="card-header">
+          <div>
+            <div class="card-title" id="sir-capture-title">Capturar comandos</div>
+            <div class="card-subtitle" id="sir-capture-subtitle"></div>
+          </div>
+          <span class="badge badge-blue" id="sir-capture-count">0 códigos</span>
+        </div>
+        <div class="card-body">
+          <div class="form-group">
+            <label class="form-label">Broadlink para captura</label>
+            <div class="flex-row">
+              <select class="form-select flex-1" id="sir-capture-broadlink"></select>
+              <button class="btn btn-ghost btn-sm" onclick="refreshCaptureDevices()" title="Buscar dispositivos">
+                <i data-lucide="refresh-cw" class="icon"></i>
+              </button>
+            </div>
+          </div>
+
+          <div id="sir-media-sources-setup" style="display:none">
+            <div class="form-group">
+              <label class="form-label">Fontes / Sources (adicione antes de iniciar)</label>
+              <div class="flex-row">
+                <input class="form-input flex-1" id="sir-add-source-name" placeholder="Ex: HDMI, HDMI 2, TV, AV">
+                <button class="btn btn-primary btn-sm" onclick="addMediaSource()">
+                  <i data-lucide="plus" class="icon"></i>
+                </button>
+              </div>
+              <div id="sir-sources-list" class="flex-row mt-1"></div>
+            </div>
+          </div>
+
+          <div class="wizard-progress mt-1">
+            <div class="wizard-progress-header">
+              <span class="text-sm text-2" id="wiz-progress-label">0 de 0</span>
+              <span class="text-sm text-3" id="wiz-progress-pct">0%</span>
+            </div>
+            <div class="wizard-progress-bar">
+              <div class="wizard-progress-fill" id="wiz-progress-fill" style="width:0%"></div>
+            </div>
+          </div>
+
+          <div id="wiz-selectors" class="mt-1"></div>
+          <div class="wiz-selection-summary" id="wiz-summary"></div>
+
+          <div id="wiz-capture-feedback" class="mt-1" style="display:none">
+            <div class="learn-status" id="wiz-capture-feedback-inner"></div>
+          </div>
+
+          <div class="flex-row mt-1">
+            <button class="btn btn-primary flex-1" id="wiz-btn-capture" onclick="wizardCapture()">
+              <i data-lucide="zap" class="icon"></i>Capturar IR
+            </button>
+            <button class="btn btn-ghost" id="wiz-btn-test" onclick="wizardTest()" disabled title="Envia o último código capturado">
+              <i data-lucide="play" class="icon"></i>Testar
+            </button>
+          </div>
+
+          <div class="text-sm mt-1" id="wiz-last-captured" style="display:none">
+            <span class="text-3">Último:</span>
+            <span id="wiz-last-label" class="text-2"></span>
+            <i data-lucide="check" style="width:14px;height:14px;color:var(--ok);vertical-align:-2px"></i>
+          </div>
+
+          <div class="wizard-mode-status mt-1" id="wiz-mode-status"></div>
+
+          <div class="mt-1">
+            <button class="btn btn-ghost btn-full btn-sm" onclick="downloadSmartIR()">
+              <i data-lucide="download" class="icon"></i>Baixar JSON SmartIR
+            </button>
+          </div>
+
+          <details class="mt-1" style="background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 14px;">
+            <summary style="cursor:pointer;font-weight:600;font-size:13px;color:var(--text);">Como capturar os códigos IR</summary>
+            <div class="text-sm text-2 mt-1" style="line-height:1.6">
+              <p><strong>Ar condicionado (Climate):</strong> cada código IR envia o estado completo do aparelho (modo + ventilação + temperatura) num único sinal. Não há "ligar" separado.</p>
+              <ol style="margin:8px 0 8px 18px">
+                <li><strong>OFF:</strong> selecione OFF, aponte o controle físico pro Broadlink e pressione "desligar".</li>
+                <li><strong>Combinações:</strong> selecione modo + ventilação + temperatura nos botões; configure o controle físico igual; aponte e pressione.</li>
+                <li>Combinações capturadas ficam marcadas com check verde.</li>
+                <li><strong>Testar:</strong> clique em "Testar" pra reenviar pelo Broadlink.</li>
+              </ol>
+              <p><strong>TV / Media Player:</strong> cada comando é independente (ligar, volume, canal). Selecione, aponte, pressione.</p>
+              <p class="text-3" style="margin-top:8px"><strong>Dica:</strong> as combinações podem ser capturadas em qualquer ordem.</p>
+            </div>
+          </details>
+        </div>
+      </section>
+    </div>
+
+    <div id="learn-generic" style="display:none">
+      <section class="card">
+        <div class="card-header"><div class="card-title">Captura genérica</div></div>
+        <div class="card-body">
+          <div class="form-group">
+            <label class="form-label">Dispositivo Broadlink</label>
+            <select class="form-select" id="learn-device"></select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Nome do botão</label>
+            <input class="form-input" id="learn-name" placeholder="Ex: Ligar, Vol+, Temp-">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Grupo (opcional)</label>
+            <input class="form-input" id="learn-group" placeholder="Ex: TV Sala, AR Quarto">
+          </div>
+          <button class="btn btn-primary btn-full" id="learn-btn" onclick="startLearning()">
+            <i data-lucide="zap" class="icon"></i>Iniciar captura
+          </button>
+        </div>
+      </section>
+      <section class="card" id="learn-status-card" style="display:none">
+        <div class="card-body">
+          <div class="learn-status" id="learn-status"></div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- ═══ VIEW: Controle ═══ -->
+  <div class="view" id="view-control">
+    <div id="control-device-selector" class="mb-1"></div>
+    <div id="control-group-tabs" class="mb-1"></div>
+    <div id="remote-container"></div>
+  </div>
+
+  <!-- ═══ VIEW: Config ═══ -->
+  <div class="view" id="view-config">
+    <section class="card" style="margin-bottom:16px">
+      <div class="card-header">
+        <div>
+          <div class="card-title">Configurações</div>
+          <div class="card-subtitle">Gerencie dispositivos e códigos</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <button class="btn btn-ghost btn-full" onclick="exportCodes()">
+          <i data-lucide="file-down" class="icon"></i>Exportar JSON
+        </button>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-header"><div class="card-title">Códigos salvos</div></div>
+      <div class="card-body">
+        <div id="config-codes-list"></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="toast-box" id="toast-box"></div>
+</main>
+
+<script>
+const HASH_TO_KEY = {
+  '#dispositivos': 'emitters',
+  '#capturar':     'learn',
+  '#controle':     'control',
+  '#config':       'maintenance',
+};
+function activeKeyFromHash() { return HASH_TO_KEY[location.hash] || 'learn'; }
+HomeCore.mountHeader({ active: activeKeyFromHash() });
+window.addEventListener('hashchange', () => {
+  HomeCore.mountHeader({ active: activeKeyFromHash() });
+});
+</script>
+
+<script>
+(function(){
+    'use strict';
+
+    // ─── State ───
+    let devices = [];
+    let codes = {};
+    let favorites = {};
+    let selectedDevice = null;
+    const identifying = new Set();
+    let ws = null;
+    let pendingFavDevice = null;
+    let smartirFiles = [];
+    let activeSmartIR = null; // { filename, data, type }
+
+    // ─── Navigation (URL-driven via hash) ───
+    const HASH_TO_VIEW = {
+        '': 'learn', '#': 'learn',
+        '#dispositivos': 'devices',
+        '#capturar': 'learn',  '#controle':  'control', '#config': 'config',
+    };
+    function setView(view) {
+        document.querySelectorAll('.bnav-btn').forEach(b =>
+            b.classList.toggle('active', b.dataset.view === view));
+        document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+        const target = document.getElementById('view-' + view);
+        if (target) target.classList.add('active');
+        if (view === 'control') renderControl();
+        if (view === 'learn') {
+            populateLearnDevices();
+            document.getElementById('sir-step1').style.display = 'none';
+            document.getElementById('learn-mode-tabs').style.display = 'none';
+            showNewSmartIR();
+        }
+        if (view === 'config')  renderConfig();
+    }
+    function viewFromHash() {
+        return HASH_TO_VIEW[location.hash] || 'learn';
+    }
+    window.addEventListener('hashchange', () => setView(viewFromHash()));
+
+    // ─── Toast ───
+    window.toast = function(msg, type) {
+        const box = document.getElementById('toast-box');
+        const el = document.createElement('div');
+        el.className = 'toast toast-' + (type || 'ok');
+        el.textContent = msg;
+        box.appendChild(el);
+        setTimeout(() => el.remove(), 2600);
+    };
+
+    // ─── Haptic ───
+    function haptic(ms) { try { navigator.vibrate && navigator.vibrate(ms || 15); } catch{} }
+
+    // ─── API ───
+    async function api(method, path, body) {
+        const opts = { method, headers: { 'Content-Type': 'application/json' } };
+        if (body) opts.body = JSON.stringify(body);
+        const r = await fetch(path, opts);
+        return r.json();
+    }
+
+    // ─── Tipo de dispositivo ───
+    function deviceKind(d) {
+        const k = (d?.kind || '').toLowerCase();
+        if (k === 'gw3' || k === 'gw8' || k === 'broadlink') return k;
+        const name = (d?.name || d?.model || '').toLowerCase();
+        if (name.includes('gw3')) return 'gw3';
+        if (name.includes('gw8')) return 'gw8';
+        return 'broadlink';
+    }
+    function kindPill(d) {
+        const kind = deviceKind(d);
+        const label = { broadlink: 'Broadlink', gw3: 'GW3', gw8: 'GW8' }[kind] || kind;
+        return `<span class="kind-pill kind-${kind}">${label}</span>`;
+    }
+
+    // ─── Discover ───
+    window.discoverDevices = async function() {
+        const list = document.getElementById('device-list');
+        list.innerHTML = '<div class="empty"><div class="learn-animation"></div><h3>Escaneando rede...</h3><p>Buscando dispositivos Broadlink na rede local (5s)</p></div>';
+
+        const data = await api('GET', '/api/discover');
+        devices = data.devices || [];
+        renderDevices();
+        renderFavorites();
+    };
+
+    function renderDevices() {
+        const list = document.getElementById('device-list');
+        if (!devices.length) {
+            list.innerHTML = '<div class="empty"><i data-lucide="wifi-off" class="empty-icon"></i><h3>Nenhum dispositivo encontrado</h3><p>Verifique se o Broadlink esta ligado e na mesma rede Wi-Fi.</p></div>';
+            return;
+        }
+
+        const visible = devices.filter(d => !favorites[d.mac.replace(/[: ]/g,'').toLowerCase()]);
+        if (!visible.length) {
+            list.innerHTML = '<div class="empty"><i data-lucide="check-circle-2" class="empty-icon"></i><h3 style="margin-bottom:1px">Tudo incorporado</h3><p>Todos os dispositivos encontrados ja estao na lista de Incorporados.</p></div>';
+            return;
+        }
+        list.innerHTML = visible.map(d => {
+            const id = d.mac.replace(/[: ]/g,'').toLowerCase();
+            const isFav = false;
+            return `<div class="device-item ${selectedDevice===id?'selected':''}" onclick="selectDevice('${id}')">
+                <div class="device-icon"><i data-lucide="radio"></i></div>
+                <div class="device-info">
+                    <div class="device-name">${d.customName||d.name} ${kindPill(d)}</div>
+                    <div class="device-detail">${d.mac}</div>
+                    <div class="device-detail">${d.host}</div>
+                </div>
+                <button class="btn-star ${identifying.has(id)?'is-fav':''}" onclick="event.stopPropagation();toggleIdentify('${id}')" title="${identifying.has(id)?'Apagar LED':'Acender LED pra identificar'}">
+                    <i data-lucide="zap"></i>
+                </button>
+                <button class="btn-star ${isFav?'is-fav':''}" onclick="event.stopPropagation();openFavModal('${id}')" title="${isFav?'Editar incorporado':'Incorporar dispositivo'}">
+                    <i data-lucide="star"></i>
+                </button>
+            </div>`;
+        }).join('');
+    }
+
+    window.selectDevice = function(id) {
+        selectedDevice = id;
+        renderDevices();
+        haptic(10);
+    };
+
+    const identifyTimers = new Map();
+    window.toggleIdentify = async function(id) {
+        haptic(10);
+        const action = identifying.has(id) ? 'stop' : 'start';
+        const result = await api('POST', '/api/identify/' + id, { action });
+        if (!result.ok) { toast(result.erro || 'Falha ao identificar', 'err'); return; }
+        if (result.running) {
+            identifying.add(id);
+            if (identifyTimers.has(id)) clearTimeout(identifyTimers.get(id));
+            if (result.durationMs) {
+                identifyTimers.set(id, setTimeout(() => {
+                    identifying.delete(id);
+                    identifyTimers.delete(id);
+                    renderDevices();
+                }, result.durationMs));
+            }
+        } else {
+            identifying.delete(id);
+            if (identifyTimers.has(id)) { clearTimeout(identifyTimers.get(id)); identifyTimers.delete(id); }
+        }
+        renderDevices();
+    };
+
+    // ─── Favoritos ───
+    async function loadFavorites() {
+        const data = await api('GET', '/api/favorites');
+        favorites = data.favorites || {};
+    }
+
+    function renderFavorites() {
+        const list = document.getElementById('favorites-list');
+        const ids = Object.keys(favorites);
+
+        if (!ids.length) {
+            list.innerHTML = '<div class="empty"><i data-lucide="radio" class="empty-icon"></i><h3>Nenhum dispositivo incorporado</h3><p>Clique no <i data-lucide="star" style="width:13px;height:13px;vertical-align:-2px"></i> de um dispositivo pra incorporar.</p></div>';
+            return;
+        }
+
+        list.innerHTML = ids.map(id => {
+            const f = favorites[id];
+            const liveDev = devices.find(d => d.mac.replace(/[: ]/g,'').toLowerCase() === id);
+            const isOnline = !!liveDev;
+            const host = liveDev?.host || f.host || '—';
+            return `<div class="fav-item">
+                <div class="fav-icon"><i data-lucide="radio"></i></div>
+                <div class="fav-info">
+                    <div class="fav-name">${f.name} ${kindPill(f)}</div>
+                    <div class="fav-detail">${f.mac}</div>
+                    <div class="fav-detail">${host}</div>
+                </div>
+                <span class="badge ${isOnline?'badge-green':'badge-blue'}" style="font-size:0.6rem">${isOnline?'Online':'Offline'}</span>
+                <div class="fav-actions">
+                    <button class="btn-icon" onclick="openEditFav('${id}')" title="Renomear"><i data-lucide="pencil"></i></button>
+                    <button class="btn-icon danger" onclick="removeFavorite('${id}')" title="Remover"><i data-lucide="trash-2"></i></button>
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+    window.openFavModal = function(deviceId) {
+        const dev = devices.find(d => d.mac.replace(/[: ]/g,'').toLowerCase() === deviceId);
+        if (!dev) return;
+
+        pendingFavDevice = dev;
+        const existing = favorites[deviceId];
+
+        document.getElementById('fav-name').value = existing ? existing.name : (dev.name || '');
+        document.getElementById('fav-modal-info').textContent = `MAC: ${dev.mac} | IP: ${dev.host}`;
+        document.getElementById('fav-modal').style.display = 'flex';
+        setTimeout(() => document.getElementById('fav-name').focus(), 100);
+    };
+
+    window.openEditFav = function(id) {
+        const f = favorites[id];
+        if (!f) return;
+        pendingFavDevice = { mac: f.mac, host: f.host, devType: f.devType, model: f.model, name: f.name, _editId: id };
+        document.getElementById('fav-name').value = f.name;
+        document.getElementById('fav-modal-info').textContent = `MAC: ${f.mac}`;
+        document.getElementById('fav-modal').style.display = 'flex';
+        setTimeout(() => document.getElementById('fav-name').focus(), 100);
+    };
+
+    window.closeFavModal = function() {
+        document.getElementById('fav-modal').style.display = 'none';
+        pendingFavDevice = null;
+    };
+
+    window.saveFavorite = async function() {
+        const name = document.getElementById('fav-name').value.trim();
+        if (!name) { toast('Digite um nome', 'err'); return; }
+        if (!pendingFavDevice) return;
+
+        const id = pendingFavDevice._editId || pendingFavDevice.mac.replace(/[: ]/g,'').toLowerCase();
+
+        if (pendingFavDevice._editId) {
+            await api('PUT', '/api/favorites/' + id, { name });
+        } else {
+            await api('POST', '/api/favorites', {
+                mac: pendingFavDevice.mac,
+                name: name,
+                devType: pendingFavDevice.devType,
+                host: pendingFavDevice.host,
+                model: pendingFavDevice.model || pendingFavDevice.name,
+            });
+        }
+
+        await loadFavorites();
+        renderFavorites();
+        renderDevices();
+        closeFavModal();
+        toast('Incorporado: ' + name, 'ok');
+        haptic(30);
+    };
+
+    window.removeFavorite = async function(id) {
+        const f = favorites[id];
+        if (!f || !confirm('Remover "' + f.name + '" dos incorporados?')) return;
+        await api('DELETE', '/api/favorites/' + id);
+        await loadFavorites();
+        renderFavorites();
+        renderDevices();
+        toast('Incorporado removido', 'ok');
+    };
+
+    // ─── Learning ───
+    function populateLearnDevices() {
+        const sel = document.getElementById('learn-device');
+        sel.innerHTML = devices.map(d => {
+            const id = d.mac.replace(/[: ]/g,'').toLowerCase();
+            const fav = favorites[id];
+            const label = fav ? fav.name : (d.customName || d.name);
+            return `<option value="${id}">${label} (${d.host})</option>`;
+        }).join('');
+        if (!devices.length) sel.innerHTML = '<option value="">Nenhum dispositivo — busque primeiro</option>';
+    }
+
+    function connectWS() {
+        if (ws && ws.readyState === WebSocket.OPEN) return ws;
+        const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+        ws = new WebSocket(`${proto}://${location.host}`);
+        return ws;
+    }
+
+    window.startLearning = function() {
+        const deviceId = document.getElementById('learn-device').value;
+        const nome = document.getElementById('learn-name').value.trim();
+        const grupo = document.getElementById('learn-group').value.trim();
+
+        if (!deviceId) { toast('Selecione um dispositivo', 'err'); return; }
+        if (!nome) { toast('Digite o nome do botao', 'err'); return; }
+
+        const statusCard = document.getElementById('learn-status-card');
+        const statusEl = document.getElementById('learn-status');
+        statusCard.style.display = 'block';
+        statusEl.innerHTML = '<div class="learn-pulse"></div><h3>Aponte o controle para o Broadlink</h3><p class="text-2 text-sm">Pressione o botao do controle remoto...</p>';
+
+        document.getElementById('learn-btn').disabled = true;
+
+        const sock = connectWS();
+
+        const send = () => {
+            sock.send(JSON.stringify({ type: 'learn', deviceId, nome, grupo, timeout: 12 }));
+        };
+
+        if (sock.readyState === WebSocket.OPEN) {
+            send();
+        } else {
+            sock.onopen = send;
+        }
+
+        sock.onmessage = (e) => {
+            const msg = JSON.parse(e.data);
+
+            if (msg.type === 'status') {
+                if (msg.status === 'learning' || msg.status === 'waiting') {
+                    statusEl.innerHTML = '<div class="learn-pulse"></div><h3>Aguardando sinal IR...</h3><p class="text-2 text-sm">Aponte o controle e pressione o botao</p>';
+                }
+            } else if (msg.type === 'learned') {
+                statusEl.innerHTML = `<i data-lucide="check-circle-2" class="status-icon ok"></i><h3>Código capturado!</h3><p class="text-2 text-sm">${msg.nome} salvo com sucesso</p>`;
+                toast('Codigo capturado: ' + msg.nome, 'ok');
+                haptic(50);
+                document.getElementById('learn-name').value = '';
+                document.getElementById('learn-btn').disabled = false;
+                loadCodes();
+            } else if (msg.type === 'timeout') {
+                statusEl.innerHTML = '<i data-lucide="alert-triangle" class="status-icon warn"></i><h3>Tempo esgotado</h3><p class="text-2 text-sm">Nenhum sinal recebido. Tente novamente.</p>';
+                toast('Timeout — tente novamente', 'err');
+                document.getElementById('learn-btn').disabled = false;
+            } else if (msg.type === 'error') {
+                statusEl.innerHTML = `<i data-lucide="x-circle" class="status-icon err"></i><h3>Erro</h3><p class="text-2 text-sm">${msg.erro}</p>`;
+                toast(msg.erro, 'err');
+                document.getElementById('learn-btn').disabled = false;
+            }
+        };
+    };
+
+    // ─── Codes ───
+    async function loadCodes() {
+        const data = await api('GET', '/api/codes');
+        codes = data.codes || {};
+    }
+
+    // ─── Send IR ───
+    async function sendIR(deviceId, botao) {
+        haptic(20);
+
+        const led = document.getElementById('ir-led');
+        if (led) { led.classList.remove('pulse'); void led.offsetWidth; led.classList.add('pulse'); }
+
+        try {
+            const data = await api('POST', '/api/send', { deviceId, botao });
+            if (data.ok) {
+                toast('Enviado', 'ok');
+            } else {
+                toast(data.erro || 'Erro', 'err');
+            }
+        } catch {
+            toast('Falha na conexao', 'err');
+        }
+    }
+
+    // ─── Remote Control Rendering ───
+    const BTN_MAP = {
+        power: /^(ligar|desligar|power|on.?off|liga.?desliga)$/i,
+        volUp: /^(vol\+|vol ?up|volume\+|volume ?mais)$/i,
+        volDown: /^(vol-|vol ?down|volume-|volume ?menos)$/i,
+        chUp: /^(ch\+|ch ?up|canal\+|canal ?mais|prog\+)$/i,
+        chDown: /^(ch-|ch ?down|canal-|canal ?menos|prog-)$/i,
+        mute: /^(mute|mudo|sem ?som)$/i,
+        tempUp: /^(temp\+|temperatura\+|temp ?mais)$/i,
+        tempDown: /^(temp-|temperatura-|temp ?menos)$/i,
+        up: /^(cima|up|seta.?cima)$/i,
+        down: /^(baixo|down|seta.?baixo)$/i,
+        left: /^(esquerda|left|seta.?esquerda)$/i,
+        right: /^(direita|right|seta.?direita)$/i,
+        ok: /^(ok|enter|confirmar|select)$/i,
+        menu: /^(menu|home|inicio)$/i,
+        back: /^(voltar|back|return)$/i,
+        input: /^(input|source|entrada|fonte|hdmi)$/i,
+        number: /^(\d)$/,
+    };
+
+    function classify(name) {
+        for (const [t, rx] of Object.entries(BTN_MAP)) {
+            if (rx.test(name)) return t;
+        }
+        return 'generic';
+    }
+
+    function rcBtn(deviceId, nome, cssClass, label) {
+        const btn = document.createElement('button');
+        btn.className = 'rc-btn ' + cssClass;
+        btn.innerHTML = label || nome;
+        btn.title = nome;
+        btn.addEventListener('click', () => {
+            btn.classList.add('flash');
+            setTimeout(() => btn.classList.remove('flash'), 250);
+            sendIR(deviceId, nome);
+        });
+        return btn;
+    }
+
+    function renderControl() {
+        const container = document.getElementById('remote-container');
+        const selector = document.getElementById('control-device-selector');
+        const groupTabs = document.getElementById('control-group-tabs');
+
+        if (!devices.length) {
+            selector.innerHTML = '';
+            groupTabs.innerHTML = '';
+            container.innerHTML = '<div class="empty"><i data-lucide="plug-zap" class="empty-icon"></i><h3>Nenhum dispositivo</h3><p>Busque dispositivos na aba Dispositivos primeiro.</p></div>';
+            return;
+        }
+
+        // Device selector
+        const deviceIds = Object.keys(codes);
+        if (!deviceIds.length) {
+            selector.innerHTML = '';
+            groupTabs.innerHTML = '';
+            container.innerHTML = '<div class="empty"><i data-lucide="gamepad-2" class="empty-icon"></i><h3>Sem codigos capturados</h3><p>Capture codigos IR na aba Capturar para montar seu controle virtual.</p></div>';
+            return;
+        }
+
+        // Build device selector tabs
+        selector.innerHTML = '<div class="nav-tabs" id="ctrl-dev-tabs"></div>';
+        const tabsEl = selector.querySelector('#ctrl-dev-tabs');
+
+        deviceIds.forEach(id => {
+            const dev = devices.find(d => d.mac.replace(/[: ]/g,'').toLowerCase() === id);
+            const tab = document.createElement('button');
+            tab.className = 'nav-tab' + (id === (selectedDevice || deviceIds[0]) ? ' active' : '');
+            tab.textContent = dev ? (dev.customName || dev.name) : id.slice(0,8);
+            tab.addEventListener('click', () => {
+                selectedDevice = id;
+                renderControl();
+                haptic(10);
+            });
+            tabsEl.appendChild(tab);
+        });
+
+        const activeId = selectedDevice || deviceIds[0];
+        const deviceCodes = codes[activeId];
+        if (!deviceCodes || !deviceCodes.botoes) {
+            groupTabs.innerHTML = '';
+            container.innerHTML = '<div class="empty"><p>Nenhum codigo para este dispositivo.</p></div>';
+            return;
+        }
+
+        // Group tabs
+        const botoes = deviceCodes.botoes;
+        const groups = new Set();
+        Object.values(botoes).forEach(b => groups.add(b.grupo || 'Geral'));
+        const groupList = [...groups];
+
+        if (groupList.length > 1) {
+            groupTabs.innerHTML = '<div class="nav-tabs" id="ctrl-grp-tabs"></div>';
+            const grpTabsEl = groupTabs.querySelector('#ctrl-grp-tabs');
+            groupList.forEach((g, i) => {
+                const tab = document.createElement('button');
+                tab.className = 'nav-tab' + (i === 0 ? ' active' : '');
+                tab.textContent = g;
+                tab.addEventListener('click', () => {
+                    grpTabsEl.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+                    buildRemote(activeId, botoes, g);
+                    haptic(10);
+                });
+                grpTabsEl.appendChild(tab);
+            });
+        } else {
+            groupTabs.innerHTML = '';
+        }
+
+        buildRemote(activeId, botoes, groupList[0]);
+    }
+
+    function buildRemote(deviceId, allBotoes, grupo) {
+        const container = document.getElementById('remote-container');
+
+        // Filter by group
+        const botoes = {};
+        for (const [nome, info] of Object.entries(allBotoes)) {
+            if ((info.grupo || 'Geral') === grupo) botoes[nome] = info;
+        }
+
+        const classified = {};
+        const generics = [];
+        const numbers = [];
+
+        for (const nome of Object.keys(botoes)) {
+            const type = classify(nome);
+            if (type === 'generic') generics.push(nome);
+            else if (type === 'number') numbers.push(nome);
+            else classified[type] = nome;
+        }
+
+        // Build remote body
+        const body = document.createElement('div');
+        body.className = 'remote-body';
+
+        // IR LED
+        const led = document.createElement('div');
+        led.className = 'ir-led';
+        led.id = 'ir-led';
+        body.appendChild(led);
+
+        // Power
+        if (classified.power) {
+            const sec = mkSection('');
+            sec.appendChild(rcBtn(deviceId, classified.power, 'btn-power', '\u23FB'));
+            body.appendChild(sec);
+        }
+
+        // Top controls
+        const topKeys = ['input','mute','menu','back'];
+        const topBtns = topKeys.filter(k => classified[k]);
+        if (topBtns.length) {
+            const row = document.createElement('div');
+            row.className = 'rc-row';
+            topBtns.forEach(k => row.appendChild(rcBtn(deviceId, classified[k], 'btn-pill-rc', classified[k])));
+            body.appendChild(row);
+        }
+
+        // D-Pad
+        const dpadKeys = ['up','down','left','right','ok'];
+        if (dpadKeys.some(k => classified[k])) {
+            body.appendChild(mkDivider());
+            const sec = mkSection('');
+            const dpad = document.createElement('div');
+            dpad.className = 'dpad';
+            if (classified.up) dpad.appendChild(rcBtn(deviceId, classified.up, 'dpad-btn dpad-up rc-btn', '\u25B2'));
+            if (classified.down) dpad.appendChild(rcBtn(deviceId, classified.down, 'dpad-btn dpad-down rc-btn', '\u25BC'));
+            if (classified.left) dpad.appendChild(rcBtn(deviceId, classified.left, 'dpad-btn dpad-left rc-btn', '\u25C0'));
+            if (classified.right) dpad.appendChild(rcBtn(deviceId, classified.right, 'dpad-btn dpad-right rc-btn', '\u25B6'));
+            if (classified.ok) dpad.appendChild(rcBtn(deviceId, classified.ok, 'dpad-center rc-btn', 'OK'));
+            sec.appendChild(dpad);
+            body.appendChild(sec);
+        }
+
+        // Vol / Ch / Temp
+        const hasVol = classified.volUp || classified.volDown;
+        const hasCh = classified.chUp || classified.chDown;
+        const hasTemp = classified.tempUp || classified.tempDown;
+
+        if (hasVol || hasCh || hasTemp) {
+            body.appendChild(mkDivider());
+            const row = document.createElement('div');
+            row.className = 'vol-ch-row';
+
+            if (hasVol) {
+                const g = document.createElement('div');
+                g.className = 'vol-ch-grp';
+                g.innerHTML = '<span class="rc-label">Volume</span>';
+                if (classified.volUp) g.appendChild(rcBtn(deviceId, classified.volUp, 'btn-vol rc-btn', '+'));
+                if (classified.volDown) g.appendChild(rcBtn(deviceId, classified.volDown, 'btn-vol rc-btn', '\u2212'));
+                row.appendChild(g);
+            }
+
+            if (hasCh) {
+                const g = document.createElement('div');
+                g.className = 'vol-ch-grp';
+                g.innerHTML = '<span class="rc-label">Canal</span>';
+                if (classified.chUp) g.appendChild(rcBtn(deviceId, classified.chUp, 'btn-vol rc-btn', '\u25B2'));
+                if (classified.chDown) g.appendChild(rcBtn(deviceId, classified.chDown, 'btn-vol rc-btn', '\u25BC'));
+                row.appendChild(g);
+            }
+
+            if (hasTemp) {
+                const g = document.createElement('div');
+                g.className = 'vol-ch-grp';
+                g.innerHTML = '<span class="rc-label">Temp</span>';
+                if (classified.tempUp) g.appendChild(rcBtn(deviceId, classified.tempUp, 'btn-vol rc-btn', '\u25B2'));
+                if (classified.tempDown) g.appendChild(rcBtn(deviceId, classified.tempDown, 'btn-vol rc-btn', '\u25BC'));
+                row.appendChild(g);
+            }
+
+            body.appendChild(row);
+        }
+
+        // Numbers
+        if (numbers.length) {
+            body.appendChild(mkDivider());
+            const sec = mkSection('');
+            const grid = document.createElement('div');
+            grid.className = 'num-grid';
+            numbers.sort((a,b) => { const na=+a, nb=+b; if(na===0) return 1; if(nb===0) return -1; return na-nb; });
+            numbers.forEach(n => grid.appendChild(rcBtn(deviceId, n, 'btn-number-rc rc-btn', n)));
+            sec.appendChild(grid);
+            body.appendChild(sec);
+        }
+
+        // Generics
+        if (generics.length) {
+            body.appendChild(mkDivider());
+            const sec = mkSection('Outros');
+            const grid = document.createElement('div');
+            grid.className = 'generic-grid';
+            generics.forEach(n => grid.appendChild(rcBtn(deviceId, n, 'btn-rect-rc rc-btn', n)));
+            sec.appendChild(grid);
+            body.appendChild(sec);
+        }
+
+        if (!Object.keys(botoes).length) {
+            body.innerHTML = '<div class="empty"><p>Nenhum botao neste grupo.</p></div>';
+        }
+
+        container.innerHTML = '';
+        container.appendChild(body);
+    }
+
+    function mkSection(label) {
+        const s = document.createElement('div');
+        s.className = 'rc-section';
+        if (label) { const l = document.createElement('span'); l.className = 'rc-label'; l.textContent = label; s.appendChild(l); }
+        return s;
+    }
+
+    function mkDivider() {
+        const d = document.createElement('div');
+        d.className = 'rc-divider';
+        return d;
+    }
+
+    // ─── Config View ───
+    function renderConfig() {
+        const list = document.getElementById('config-codes-list');
+        const deviceIds = Object.keys(codes);
+
+        if (!deviceIds.length) {
+            list.innerHTML = '<p class="text-3 text-sm">Nenhum codigo salvo ainda.</p>';
+            return;
+        }
+
+        let html = '';
+        deviceIds.forEach(id => {
+            const dev = devices.find(d => d.mac.replace(/[: ]/g,'').toLowerCase() === id);
+            const devName = dev ? (dev.customName || dev.name) : id.slice(0,8);
+            const botoes = codes[id].botoes || {};
+            const count = Object.keys(botoes).length;
+
+            html += `<div class="device-item" style="cursor:default;flex-wrap:wrap">
+                <div class="device-icon"><i data-lucide="cast"></i></div>
+                <div class="device-info">
+                    <div class="device-name">${devName}</div>
+                    <div class="device-detail">${count} botao(es) salvos</div>
+                </div>
+            </div>`;
+
+            Object.keys(botoes).forEach(nome => {
+                html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:0.4rem 0.8rem;border-bottom:1px solid var(--border)">
+                    <span class="text-sm">${nome} <span class="text-3">${botoes[nome].grupo ? '('+botoes[nome].grupo+')' : ''}</span></span>
+                    <button class="btn btn-danger btn-sm" onclick="deleteCode('${id}','${nome}')">Excluir</button>
+                </div>`;
+            });
+        });
+
+        list.innerHTML = html;
+    }
+
+    window.deleteCode = async function(deviceId, botao) {
+        if (!confirm('Excluir o botao "' + botao + '"?')) return;
+        await api('DELETE', '/api/codes/' + deviceId + '/' + encodeURIComponent(botao));
+        await loadCodes();
+        renderConfig();
+        toast('Botao removido', 'ok');
+    };
+
+    window.exportCodes = function() {
+        const blob = new Blob([JSON.stringify(codes, null, 2)], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'homecore_codes.json';
+        a.click();
+    };
+
+    // ─── SmartIR ───
+
+    let wizardCombinations = [];
+    let wizardIndex = 0;
+    let mediaSources = [];
+
+    window.setLearnMode = function(mode) {
+        document.querySelectorAll('#learn-mode-tabs .nav-tab').forEach(t => t.classList.toggle('active', t.dataset.lmode === mode));
+        document.getElementById('learn-smartir').style.display = mode === 'smartir' ? 'block' : 'none';
+        document.getElementById('learn-generic').style.display = mode === 'generic' ? 'block' : 'none';
+        if (mode === 'smartir') loadSmartIRFiles();
+        if (mode === 'generic') populateLearnDevices();
+    };
+
+    async function loadSmartIRFiles() {
+        const data = await api('GET', '/api/smartir');
+        smartirFiles = data.files || [];
+        renderSmartIRFiles();
+    }
+
+    function renderSmartIRFiles() {
+        const list = document.getElementById('sir-file-list');
+        if (!smartirFiles.length) {
+            list.innerHTML = '<p class="text-3 text-sm">Nenhum arquivo SmartIR. Clique em "+ Novo" para criar.</p>';
+            return;
+        }
+        list.innerHTML = smartirFiles.map(f => {
+            const isClimate = f.type === 'climate';
+            const active = activeSmartIR && activeSmartIR.filename === f.filename;
+            return `<div class="sir-file-item ${active?'active':''}" onclick="selectSmartIR('${f.filename}')">
+                <div class="sir-file-icon ${isClimate?'climate':'media'}"><i data-lucide="${isClimate?'snowflake':'play'}"></i></div>
+                <div class="sir-file-info">
+                    <div class="sir-file-name">${f.manufacturer} ${f.supportedModels.join(', ')}</div>
+                    <div class="sir-file-detail">${f.filename} &middot; ${f.type} &middot; ${f.commandCount} codigos</div>
+                </div>
+                <button class="btn-icon danger" onclick="event.stopPropagation();deleteSmartIR('${f.filename}')" title="Excluir"><i data-lucide="x"></i></button>
+            </div>`;
+        }).join('');
+    }
+
+    window.selectSmartIR = async function(filename) {
+        const data = await api('GET', '/api/smartir/' + filename);
+        if (!data.ok) { toast(data.erro, 'err'); return; }
+
+        const fileData = data.data;
+        const isClimate = !!fileData.operationModes;
+        activeSmartIR = { filename, data: fileData, type: isClimate ? 'climate' : 'media_player' };
+
+        renderSmartIRFiles();
+        showSmartIRCapture();
+    };
+
+    window.deleteSmartIR = async function(filename) {
+        if (!confirm('Excluir ' + filename + '?')) return;
+        await api('DELETE', '/api/smartir/' + filename);
+        if (activeSmartIR && activeSmartIR.filename === filename) {
+            activeSmartIR = null;
+            document.getElementById('sir-capture').style.display = 'none';
+        }
+        await loadSmartIRFiles();
+        toast('Arquivo removido', 'ok');
+    };
+
+    window.showNewSmartIR = function() {
+        document.getElementById('sir-new-form').style.display = 'block';
+        const sel = document.getElementById('sir-broadlink');
+        sel.innerHTML = devices.map(d => {
+            const id = d.mac.replace(/[: ]/g,'').toLowerCase();
+            const fav = favorites[id];
+            return `<option value="${id}">${fav ? fav.name : d.name} (${d.host})</option>`;
+        }).join('');
+        if (!devices.length) sel.innerHTML = '<option value="">Busque dispositivos primeiro</option>';
+        toggleSmartIRType();
+    };
+
+    window.hideNewSmartIR = function() {
+        document.getElementById('sir-new-form').style.display = 'none';
+    };
+
+    window.cancelNewSmartIR = function() {
+        hideNewSmartIR();
+        document.getElementById('sir-step1').style.display = '';
+        document.getElementById('learn-mode-tabs').style.display = '';
+    };
+
+    window.toggleSmartIRType = function() {
+        const isClimate = document.getElementById('sir-type').value === 'climate';
+        document.getElementById('sir-climate-fields').style.display = isClimate ? 'block' : 'none';
+    };
+
+    window.createSmartIR = async function() {
+        const type = document.getElementById('sir-type').value;
+        const manufacturer = document.getElementById('sir-manufacturer').value.trim();
+        const model = document.getElementById('sir-model').value.trim();
+
+        if (!manufacturer) { toast('Digite a marca', 'err'); return; }
+
+        const body = { type, manufacturer, supportedModels: model ? [model] : [] };
+
+        if (type === 'climate') {
+            body.minTemperature = parseFloat(document.getElementById('sir-temp-min').value) || 16;
+            body.maxTemperature = parseFloat(document.getElementById('sir-temp-max').value) || 30;
+            body.precision = parseFloat(document.getElementById('sir-precision').value) || 1;
+            body.operationModes = getCheckedValues('sir-modes');
+            body.fanModes = getCheckedValues('sir-fans');
+            body.swingModes = getCheckedValues('sir-swings');
+            if (!body.operationModes.length) { toast('Selecione ao menos um modo', 'err'); return; }
+            if (!body.fanModes.length) { toast('Selecione ao menos um fan', 'err'); return; }
+        }
+
+        const result = await api('POST', '/api/smartir', body);
+        if (!result.ok) { toast(result.erro, 'err'); return; }
+
+        toast('Arquivo ' + result.filename + ' criado!', 'ok');
+        hideNewSmartIR();
+        activeSmartIR = { filename: result.filename, data: result.data, type };
+        await loadSmartIRFiles();
+        showSmartIRCapture();
+    };
+
+    function getCheckedValues(containerId) {
+        return [...document.querySelectorAll('#' + containerId + ' input:checked')].map(i => i.value);
+    }
+
+    // ─── Wizard: Generate Combinations ───
+
+    function generateCombinations(data, type) {
+        const combos = [];
+
+        if (type === 'climate') {
+            // OFF first
+            combos.push({ path: ['off'], label: 'Desligar', tags: [{ label: 'Comando', value: 'OFF' }], group: 'off' });
+
+            const modes = data.operationModes || [];
+            const fans = data.fanModes || [];
+            const swings = data.swingModes && data.swingModes.length ? data.swingModes : null;
+            const min = data.minTemperature || 16;
+            const max = data.maxTemperature || 30;
+            const step = data.precision || 1;
+
+            for (const mode of modes) {
+                for (const fan of fans) {
+                    if (swings) {
+                        for (const swing of swings) {
+                            for (let t = min; t <= max; t += step) {
+                                const tStr = step < 1 ? t.toFixed(1) : String(t);
+                                combos.push({
+                                    path: [mode, fan, swing, tStr],
+                                    label: `${mode} / ${fan} / ${swing} / ${tStr}\u00b0C`,
+                                    tags: [
+                                        { label: 'Modo', value: mode },
+                                        { label: 'Fan', value: fan },
+                                        { label: 'Swing', value: swing },
+                                        { label: 'Temp', value: tStr + '\u00b0C' },
+                                    ],
+                                    group: mode,
+                                });
+                            }
+                        }
+                    } else {
+                        for (let t = min; t <= max; t += step) {
+                            const tStr = step < 1 ? t.toFixed(1) : String(t);
+                            combos.push({
+                                path: [mode, fan, tStr],
+                                label: `${mode} / ${fan} / ${tStr}\u00b0C`,
+                                tags: [
+                                    { label: 'Modo', value: mode },
+                                    { label: 'Fan', value: fan },
+                                    { label: 'Temp', value: tStr + '\u00b0C' },
+                                ],
+                                group: mode,
+                            });
+                        }
+                    }
+                }
+            }
+        } else {
+            // Media Player
+            const mediaCommands = [
+                { key: 'on', label: 'Ligar' },
+                { key: 'off', label: 'Desligar' },
+                { key: 'volumeUp', label: 'Volume +' },
+                { key: 'volumeDown', label: 'Volume -' },
+                { key: 'mute', label: 'Mudo' },
+                { key: 'nextChannel', label: 'Canal +' },
+                { key: 'previousChannel', label: 'Canal -' },
+            ];
+
+            for (const cmd of mediaCommands) {
+                combos.push({
+                    path: [cmd.key],
+                    label: cmd.label,
+                    tags: [{ label: 'Comando', value: cmd.label }],
+                    group: 'comandos',
+                });
+            }
+
+            // Sources
+            for (const src of mediaSources) {
+                combos.push({
+                    path: ['sources', src],
+                    label: 'Source: ' + src,
+                    tags: [{ label: 'Fonte', value: src }],
+                    group: 'sources',
+                });
+            }
+        }
+
+        return combos;
+    }
+
+    function isCaptured(combo, commands) {
+        let obj = commands || {};
+        for (let i = 0; i < combo.path.length; i++) {
+            const key = combo.path[i];
+            if (i === combo.path.length - 1) {
+                return typeof obj[key] === 'string' && obj[key].length > 0;
+            }
+            if (!obj[key] || typeof obj[key] !== 'object') return false;
+            obj = obj[key];
+        }
+        return false;
+    }
+
+    function getCapturedCount(commands) {
+        let count = 0;
+        function walk(obj) {
+            for (const v of Object.values(obj)) {
+                if (typeof v === 'string' && v.length > 0) count++;
+                else if (typeof v === 'object' && v !== null && !Array.isArray(v)) walk(v);
+            }
+        }
+        if (commands) walk(commands);
+        return count;
+    }
+
+    // ─── Wizard: State ───
+
+    let wizSelection = { mode: null, fan: null, swing: null, temp: null, command: null };
+    let wizIsOff = false;
+
+    // ─── Wizard: UI ───
+
+    function populateCaptureDeviceSelector() {
+        const sel = document.getElementById('sir-capture-broadlink');
+        if (!sel) return;
+        sel.innerHTML = devices.map(d => {
+            const id = d.mac.replace(/[: ]/g,'').toLowerCase();
+            const fav = favorites[id];
+            return `<option value="${id}">${fav ? fav.name : d.name} (${d.host})</option>`;
+        }).join('');
+        if (!devices.length) sel.innerHTML = '<option value="">Busque dispositivos primeiro</option>';
+    }
+
+    window.refreshCaptureDevices = async function() {
+        toast('Buscando dispositivos...', 'ok');
+        const res = await api('GET', '/api/discover');
+        if (res.ok && res.devices) {
+            devices = res.devices;
+            populateCaptureDeviceSelector();
+            toast(devices.length + ' dispositivo(s) encontrado(s)', 'ok');
+        } else {
+            toast('Erro ao buscar dispositivos', 'err');
+        }
+    };
+
+    function showSmartIRCapture() {
+        if (!activeSmartIR) return;
+        const cap = document.getElementById('sir-capture');
+        cap.style.display = 'block';
+
+        populateCaptureDeviceSelector();
+
+        const d = activeSmartIR.data;
+        document.getElementById('sir-capture-title').textContent = d.manufacturer + ' ' + (d.supportedModels || []).join(', ');
+        document.getElementById('sir-capture-subtitle').textContent = activeSmartIR.filename + ' \u2014 ' + activeSmartIR.type;
+
+        // Media sources setup
+        const srcSetup = document.getElementById('sir-media-sources-setup');
+        srcSetup.style.display = activeSmartIR.type === 'media_player' ? 'block' : 'none';
+
+        // Rebuild existing sources from saved data
+        if (activeSmartIR.type === 'media_player' && d.commands && d.commands.sources) {
+            mediaSources = Object.keys(d.commands.sources);
+            renderMediaSources();
+        }
+
+        // Generate combinations
+        wizardCombinations = generateCombinations(d, activeSmartIR.type);
+
+        // Reset selection
+        wizIsOff = false;
+        wizSelection = { mode: null, fan: null, swing: null, temp: null, command: null };
+
+        // Default: select first option of each group
+        if (activeSmartIR.type === 'climate') {
+            const modes = d.operationModes || [];
+            const fans = d.fanModes || [];
+            const swings = d.swingModes || [];
+            const min = d.minTemperature || 16;
+            if (modes.length) wizSelection.mode = modes[0];
+            if (fans.length) wizSelection.fan = fans[0];
+            if (swings.length) wizSelection.swing = swings[0];
+            wizSelection.temp = String(min);
+        }
+
+        renderWizard();
+    }
+
+    function getCurrentPath() {
+        if (!activeSmartIR) return null;
+        if (wizIsOff) return ['off'];
+        if (activeSmartIR.type === 'climate') {
+            if (!wizSelection.mode || !wizSelection.fan || !wizSelection.temp) return null;
+            const path = [wizSelection.mode, wizSelection.fan];
+            if (wizSelection.swing) path.push(wizSelection.swing);
+            path.push(wizSelection.temp);
+            return path;
+        } else {
+            if (wizSelection.command) return wizSelection.command.startsWith('src:') ?
+                ['sources', wizSelection.command.slice(4)] : [wizSelection.command];
+            return null;
+        }
+    }
+
+    function getCurrentLabel() {
+        const path = getCurrentPath();
+        if (!path) return '';
+        if (path[0] === 'off') return 'Desligar (OFF)';
+        return path.join(' / ');
+    }
+
+    function isPathCaptured(path, commands) {
+        let obj = commands || {};
+        for (let i = 0; i < path.length; i++) {
+            const key = path[i];
+            if (i === path.length - 1) {
+                return typeof obj[key] === 'string' && obj[key].length > 0;
+            }
+            if (!obj[key] || typeof obj[key] !== 'object') return false;
+            obj = obj[key];
+        }
+        return false;
+    }
+
+    function renderWizard() {
+        if (!activeSmartIR) return;
+
+        const d = activeSmartIR.data;
+        const commands = d.commands || {};
+        const total = wizardCombinations.length;
+        const captured = getCapturedCount(commands);
+        const pct = total > 0 ? Math.round((captured / total) * 100) : 0;
+
+        // Progress
+        document.getElementById('wiz-progress-label').textContent = captured + ' de ' + total;
+        document.getElementById('wiz-progress-pct').textContent = pct + '%';
+        document.getElementById('wiz-progress-fill').style.width = pct + '%';
+        document.getElementById('sir-capture-count').textContent = captured + ' codigos';
+
+        // Hide feedback
+        document.getElementById('wiz-capture-feedback').style.display = 'none';
+
+        // Render selectors
+        renderSelectors(commands);
+
+        // Render summary
+        renderSummary(commands);
+
+        // Mode status
+        renderModeStatus(commands);
+    }
+
+    function renderSelectors(commands) {
+        const el = document.getElementById('wiz-selectors');
+        const d = activeSmartIR.data;
+        let html = '';
+
+        if (activeSmartIR.type === 'climate') {
+            // OFF button
+            const offCaptured = isPathCaptured(['off'], commands);
+            html += '<div class="wiz-selector">';
+            html += '<div class="wiz-selector-btns">';
+            html += `<button class="wiz-sel-btn off-btn${wizIsOff ? ' selected' : ''}${offCaptured ? ' captured' : ''}" onclick="wizSelectOff()">OFF (Desligar)</button>`;
+            html += '</div></div>';
+
+            // Modes
+            const modes = d.operationModes || [];
+            if (modes.length) {
+                html += '<div class="wiz-selector">';
+                html += '<div class="wiz-selector-label">Modo</div>';
+                html += '<div class="wiz-selector-btns">';
+                modes.forEach(m => {
+                    const sel = !wizIsOff && wizSelection.mode === m;
+                    // Check if ANY combo with this mode is captured
+                    const hasCaptured = wizardCombinations.some(c => c.group === m && isCaptured(c, commands));
+                    const allCaptured = wizardCombinations.filter(c => c.group === m).every(c => isCaptured(c, commands));
+                    html += `<button class="wiz-sel-btn${sel ? ' selected' : ''}${allCaptured ? ' captured' : ''}" onclick="wizSelectMode('${m}')">${m}</button>`;
+                });
+                html += '</div></div>';
+            }
+
+            // Fans
+            const fans = d.fanModes || [];
+            if (fans.length) {
+                html += '<div class="wiz-selector">';
+                html += '<div class="wiz-selector-label">Ventilacao</div>';
+                html += '<div class="wiz-selector-btns">';
+                fans.forEach(f => {
+                    const sel = !wizIsOff && wizSelection.fan === f;
+                    html += `<button class="wiz-sel-btn${sel ? ' selected' : ''}" onclick="wizSelectFan('${f}')">${f}</button>`;
+                });
+                html += '</div></div>';
+            }
+
+            // Swings
+            const swings = d.swingModes || [];
+            if (swings.length) {
+                html += '<div class="wiz-selector">';
+                html += '<div class="wiz-selector-label">Swing</div>';
+                html += '<div class="wiz-selector-btns">';
+                swings.forEach(s => {
+                    const sel = !wizIsOff && wizSelection.swing === s;
+                    html += `<button class="wiz-sel-btn${sel ? ' selected' : ''}" onclick="wizSelectSwing('${s}')">${s}</button>`;
+                });
+                html += '</div></div>';
+            }
+
+            // Temperatures
+            const min = d.minTemperature || 16;
+            const max = d.maxTemperature || 30;
+            const step = d.precision || 1;
+            html += '<div class="wiz-selector">';
+            html += '<div class="wiz-selector-label">Temperatura</div>';
+            html += '<div class="wiz-selector-btns">';
+            for (let t = min; t <= max; t += step) {
+                const tStr = step < 1 ? t.toFixed(1) : String(t);
+                const sel = !wizIsOff && wizSelection.temp === tStr;
+                // Check if current mode+fan+swing + this temp is captured
+                const path = wizSelection.mode && wizSelection.fan ?
+                    (wizSelection.swing ? [wizSelection.mode, wizSelection.fan, wizSelection.swing, tStr]
+                        : [wizSelection.mode, wizSelection.fan, tStr]) : null;
+                const isCap = path ? isPathCaptured(path, commands) : false;
+                html += `<button class="wiz-sel-btn${sel ? ' selected' : ''}${isCap ? ' captured' : ''}" onclick="wizSelectTemp('${tStr}')">${tStr}\u00b0</button>`;
+            }
+            html += '</div></div>';
+
+        } else {
+            // Media Player commands
+            const mediaCommands = [
+                { key: 'on', label: 'Ligar' },
+                { key: 'off', label: 'Desligar' },
+                { key: 'volumeUp', label: 'Volume +' },
+                { key: 'volumeDown', label: 'Volume -' },
+                { key: 'mute', label: 'Mudo' },
+                { key: 'nextChannel', label: 'Canal +' },
+                { key: 'previousChannel', label: 'Canal -' },
+            ];
+
+            html += '<div class="wiz-selector">';
+            html += '<div class="wiz-selector-label">Comandos</div>';
+            html += '<div class="wiz-selector-btns">';
+            mediaCommands.forEach(cmd => {
+                const sel = wizSelection.command === cmd.key;
+                const isCap = isPathCaptured([cmd.key], commands);
+                html += `<button class="wiz-sel-btn${sel ? ' selected' : ''}${isCap ? ' captured' : ''}" onclick="wizSelectCommand('${cmd.key}')">${cmd.label}</button>`;
+            });
+            html += '</div></div>';
+
+            // Sources
+            if (mediaSources.length) {
+                html += '<div class="wiz-selector">';
+                html += '<div class="wiz-selector-label">Fontes</div>';
+                html += '<div class="wiz-selector-btns">';
+                mediaSources.forEach(src => {
+                    const sel = wizSelection.command === 'src:' + src;
+                    const isCap = isPathCaptured(['sources', src], commands);
+                    html += `<button class="wiz-sel-btn${sel ? ' selected' : ''}${isCap ? ' captured' : ''}" onclick="wizSelectCommand('src:${src}')">${src}</button>`;
+                });
+                html += '</div></div>';
+            }
+        }
+
+        el.innerHTML = html;
+    }
+
+    function renderSummary(commands) {
+        const el = document.getElementById('wiz-summary');
+        const path = getCurrentPath();
+        const capBtn = document.getElementById('wiz-btn-capture');
+        const testBtn = document.getElementById('wiz-btn-test');
+
+        if (!path) {
+            el.innerHTML = '<span class="text-3">Selecione as opcoes acima</span>';
+            capBtn.disabled = true;
+            testBtn.disabled = true;
+            return;
+        }
+
+        const label = getCurrentLabel();
+        const isCap = isPathCaptured(path, commands);
+        const badge = isCap
+            ? '<span class="captured-badge yes">ja capturado</span>'
+            : '<span class="captured-badge no">pendente</span>';
+
+        el.innerHTML = label + ' ' + badge;
+        capBtn.disabled = false;
+        capBtn.textContent = isCap ? 'Recapturar IR' : 'Capturar IR';
+        testBtn.disabled = !isCap;
+    }
+
+    function renderModeStatus(commands) {
+        const statusEl = document.getElementById('wiz-mode-status');
+        const groups = {};
+
+        wizardCombinations.forEach(c => {
+            if (!groups[c.group]) groups[c.group] = { total: 0, done: 0 };
+            groups[c.group].total++;
+            if (isCaptured(c, commands)) groups[c.group].done++;
+        });
+
+        let html = '';
+        for (const [name, g] of Object.entries(groups)) {
+            const pct = g.total > 0 ? Math.round((g.done / g.total) * 100) : 0;
+            html += `<div class="wiz-mode-row">
+                <span class="wiz-mode-name">${name}</span>
+                <div class="wiz-mode-bar"><div class="wiz-mode-bar-fill" style="width:${pct}%"></div></div>
+                <span class="wiz-mode-count">${g.done}/${g.total}</span>
+            </div>`;
+        }
+        statusEl.innerHTML = html;
+    }
+
+    // ─── Wizard: Selection handlers ───
+
+    window.wizSelectOff = function() {
+        wizIsOff = !wizIsOff;
+        renderWizard();
+        haptic(10);
+    };
+
+    window.wizSelectMode = function(mode) {
+        wizIsOff = false;
+        wizSelection.mode = mode;
+        renderWizard();
+        haptic(10);
+    };
+
+    window.wizSelectFan = function(fan) {
+        wizIsOff = false;
+        wizSelection.fan = fan;
+        renderWizard();
+        haptic(10);
+    };
+
+    window.wizSelectSwing = function(swing) {
+        wizIsOff = false;
+        wizSelection.swing = swing;
+        renderWizard();
+        haptic(10);
+    };
+
+    window.wizSelectTemp = function(temp) {
+        wizIsOff = false;
+        wizSelection.temp = temp;
+        renderWizard();
+        haptic(10);
+    };
+
+    window.wizSelectCommand = function(cmd) {
+        wizSelection.command = cmd;
+        renderWizard();
+        haptic(10);
+    };
+
+    // ─── Wizard: Capture ───
+
+    window.wizardCapture = function() {
+        if (!activeSmartIR) return;
+
+        const path = getCurrentPath();
+        if (!path) { toast('Selecione as opcoes primeiro', 'err'); return; }
+
+        const deviceId = document.getElementById('sir-capture-broadlink').value ||
+            document.getElementById('sir-broadlink').value ||
+            (devices.length ? devices[0].mac.replace(/[: ]/g,'').toLowerCase() : null);
+
+        if (!deviceId) { toast('Busque dispositivos primeiro', 'err'); return; }
+
+        const label = getCurrentLabel();
+
+        // Show feedback
+        const fbEl = document.getElementById('wiz-capture-feedback');
+        const fbInner = document.getElementById('wiz-capture-feedback-inner');
+        fbEl.style.display = 'block';
+        fbInner.innerHTML = '<div class="learn-pulse"></div><h3>Aguardando: ' + label + '</h3><p class="text-2 text-sm">Aponte o controle e pressione o botao</p>';
+
+        document.getElementById('wiz-btn-capture').disabled = true;
+
+        const sock = connectWS();
+        const msg = JSON.stringify({
+            type: 'learn_smartir',
+            deviceId,
+            filename: activeSmartIR.filename,
+            path: path,
+            label: label,
+            timeout: 12,
+        });
+
+        const send = () => sock.send(msg);
+        if (sock.readyState === WebSocket.OPEN) send();
+        else sock.onopen = send;
+
+        sock.onmessage = (e) => {
+            const resp = JSON.parse(e.data);
+
+            if (resp.type === 'learned_smartir') {
+                fbInner.innerHTML = '<i data-lucide="check-circle-2" class="status-icon ok"></i><p class="text-sm"><b>' + resp.label + '</b> capturado!</p>';
+                toast('Capturado: ' + resp.label, 'ok');
+                haptic(50);
+
+                // Show last captured
+                const lastEl = document.getElementById('wiz-last-captured');
+                lastEl.style.display = 'block';
+                document.getElementById('wiz-last-label').textContent = resp.label;
+
+                // Reload data and refresh
+                setTimeout(async () => {
+                    const fresh = await api('GET', '/api/smartir/' + activeSmartIR.filename);
+                    if (fresh.ok) activeSmartIR.data = fresh.data;
+                    renderWizard();
+                }, 600);
+
+            } else if (resp.type === 'timeout') {
+                fbInner.innerHTML = '<i data-lucide="alert-triangle" class="status-icon warn"></i><p class="text-sm">Timeout. Tente novamente.</p>';
+                toast('Timeout', 'err');
+                document.getElementById('wiz-btn-capture').disabled = false;
+
+            } else if (resp.type === 'error') {
+                fbInner.innerHTML = '<i data-lucide="x-circle" class="status-icon err"></i><p class="text-sm">' + resp.erro + '</p>';
+                toast(resp.erro, 'err');
+                document.getElementById('wiz-btn-capture').disabled = false;
+            }
+        };
+    };
+
+    // ─── Media Player: Sources ───
+
+    window.addMediaSource = function() {
+        const input = document.getElementById('sir-add-source-name');
+        const name = input.value.trim();
+        if (!name) return;
+        if (mediaSources.includes(name)) { toast('Fonte ja adicionada', 'err'); return; }
+        mediaSources.push(name);
+        input.value = '';
+        renderMediaSources();
+        // Regenerate combinations
+        if (activeSmartIR) {
+            wizardCombinations = generateCombinations(activeSmartIR.data, 'media_player');
+            renderWizard();
+        }
+        haptic(10);
+    };
+
+    window.removeMediaSource = function(name) {
+        mediaSources = mediaSources.filter(s => s !== name);
+        renderMediaSources();
+        if (activeSmartIR) {
+            wizardCombinations = generateCombinations(activeSmartIR.data, 'media_player');
+            renderWizard();
+        }
+    };
+
+    function renderMediaSources() {
+        const list = document.getElementById('sir-sources-list');
+        if (!mediaSources.length) {
+            list.innerHTML = '<span class="text-3 text-sm">Nenhuma fonte adicionada</span>';
+            return;
+        }
+        list.innerHTML = mediaSources.map(s =>
+            `<span class="source-chip">${s} <button onclick="removeMediaSource('${s}')">&times;</button></span>`
+        ).join('');
+    }
+
+    window.wizardTest = function() {
+        if (!activeSmartIR) return;
+        const path = getCurrentPath();
+        if (!path) { toast('Selecione as opcoes primeiro', 'err'); return; }
+
+        const commands = activeSmartIR.data.commands || {};
+        // Navigate to the code
+        let obj = commands;
+        for (let i = 0; i < path.length; i++) {
+            const key = path[i];
+            if (i === path.length - 1) {
+                if (typeof obj[key] === 'string' && obj[key].length > 0) {
+                    // Send the code
+                    const deviceId = document.getElementById('sir-capture-broadlink').value ||
+                        document.getElementById('sir-broadlink').value ||
+                        (devices.length ? devices[0].mac.replace(/[: ]/g,'').toLowerCase() : null);
+                    if (!deviceId) { toast('Busque dispositivos primeiro', 'err'); return; }
+
+                    const btn = document.getElementById('wiz-btn-test');
+                    btn.disabled = true;
+                    btn.textContent = 'Enviando...';
+
+                    api('POST', '/api/send', { deviceId, b64: obj[key] }).then(res => {
+                        if (res.ok) {
+                            toast('Enviado: ' + getCurrentLabel(), 'ok');
+                            haptic(30);
+                        } else {
+                            toast(res.erro || 'Erro ao enviar', 'err');
+                        }
+                        btn.disabled = false;
+                        btn.textContent = 'Testar';
+                    }).catch(() => {
+                        toast('Erro ao enviar', 'err');
+                        btn.disabled = false;
+                        btn.textContent = 'Testar';
+                    });
+                    return;
+                }
+            }
+            if (!obj[key] || typeof obj[key] !== 'object') break;
+            obj = obj[key];
+        }
+        toast('Nenhum codigo capturado para esta combinacao', 'err');
+    };
+
+    window.downloadSmartIR = function() {
+        if (!activeSmartIR) return;
+        window.open('/api/smartir/' + activeSmartIR.filename + '/download', '_blank');
+    };
+
+    // ─── Init ───
+    async function init() {
+        const [devData] = await Promise.all([
+            api('GET', '/api/devices'),
+            loadFavorites(),
+            loadCodes(),
+        ]);
+        devices = devData.devices || [];
+        if (devices.length) {
+            selectedDevice = devices[0].mac.replace(/[: ]/g,'').toLowerCase();
+        }
+        renderDevices();
+        renderFavorites();
+
+        // View inicial vinda da hash (#dispositivos | #capturar | #controle | #config)
+        setView(viewFromHash());
+
+        // Auto-discover if no devices
+        if (!devices.length) {
+            discoverDevices().then(() => renderFavorites());
+        }
+    }
+
+    init();
+})();
+</script>
+</body>
+</html>

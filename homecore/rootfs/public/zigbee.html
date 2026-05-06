@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>HomeCore — Módulos Zigbee</title>
+<base href="./" />
+<link rel="stylesheet" href="assets/app.css" />
+<link rel="stylesheet" href="assets/wifi.css" />
+<script src="assets/lucide.min.js"></script>
+<script src="assets/app.js"></script>
+<style>
+  /* Reaproveita .vendor-tag pra etiqueta Zigbee */
+  .vendor-tag.zigbee { background: color-mix(in srgb, #6c63ff 18%, var(--surface-2)); color: #6c63ff; }
+  /* LQI bars (sinal Zigbee) */
+  .lqi { display: inline-flex; gap: 2px; align-items: flex-end; height: 12px; margin-right: 5px; vertical-align: middle; }
+  .lqi .bar { width: 2.5px; background: var(--border-strong); border-radius: 1px; }
+  .lqi .bar.b1 { height: 3px; } .lqi .bar.b2 { height: 6px; } .lqi .bar.b3 { height: 9px; } .lqi .bar.b4 { height: 12px; }
+  .lqi .bar.active { background: var(--ok); }
+  .lqi .bar.active.warn { background: var(--warn); }
+  .lqi .bar.active.err { background: var(--err); }
+
+  /* Strip de leituras (mesmo formato dos channels mas sem toggles).
+     Cada "coluna" leva separador vertical pontilhado. */
+  .dev-card .readings-strip {
+    display: flex; align-items: stretch; gap: 0;
+    margin-top: 10px; padding-top: 10px;
+    border-top: 1px dashed var(--border);
+    width: 100%;
+  }
+  .dev-card .reading {
+    flex: 1 1 0; min-width: 0;
+    display: flex; flex-direction: column; gap: 2px;
+    padding: 2px 12px;
+    font-size: 12px; color: var(--text-muted);
+    text-align: center;
+  }
+  .dev-card .reading + .reading { border-left: 1px dashed var(--border); }
+  .dev-card .reading .rval {
+    font-size: 14px; font-weight: 600; color: var(--text);
+    line-height: 1.15;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .dev-card .reading .rlabel {
+    font-size: 10px; text-transform: uppercase; letter-spacing: .06em;
+    color: var(--text-subtle, var(--text-muted));
+  }
+  .dev-card .reading.solo { text-align: left; padding-left: 0; }
+</style>
+</head>
+<body>
+<header class="app-header"></header>
+<main class="app-main">
+  <div id="results">
+    <div class="empty-state" id="empty">
+      <i data-lucide="hexagon" class="icon"></i>
+      <div>Nenhum módulo Zigbee encontrado.</div>
+      <div style="margin-top:6px;font-size:13px">
+        Pareie via zigbee2mqtt (botão <strong>Permitir join</strong>) ou aguarde o bridge ficar online.
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- Modal Zigbee -->
+<div class="modal-backdrop" id="modal-zb">
+  <div class="modal-card modal-wide">
+    <h2 id="mz-title">Módulo</h2>
+    <p class="hint" id="mz-subtitle">—</p>
+    <form id="form-zb">
+      <div class="modal-cols">
+        <div class="modal-col-left">
+          <div class="field-grid">
+            <div class="field full">
+              <label for="mz-name">Nome do módulo</label>
+              <input class="input" type="text" id="mz-name" name="device_name" maxlength="80" placeholder="Ex: Interruptor da sala">
+              <span class="hint">Vai pro HA como <code>[Cômodo] &lt;Nome&gt;</code>.</span>
+            </div>
+            <div class="field full" id="mz-room-field" style="display:none">
+              <label for="mz-room">Cômodo</label>
+              <select class="select" id="mz-room" name="room_id"></select>
+              <span class="hint">Sensores/botões só têm cômodo único (sem saídas).</span>
+            </div>
+          </div>
+          <div class="tech-details">
+            <h4>Detalhes técnicos</h4>
+            <div class="info-row"><span class="k">IEEE</span><span class="v" id="mz-ieee">—</span></div>
+            <div class="info-row"><span class="k">Friendly name</span><span class="v" id="mz-friendly">—</span></div>
+            <div class="info-row"><span class="k">Fabricante</span><span class="v" id="mz-mfr">—</span></div>
+            <div class="info-row"><span class="k">Modelo</span><span class="v" id="mz-model">—</span></div>
+            <div class="info-row"><span class="k">Power</span><span class="v" id="mz-power">—</span></div>
+            <div class="info-row"><span class="k">LQI</span><span class="v" id="mz-lqi">—</span></div>
+            <div class="info-row"><span class="k">Visto por último</span><span class="v" id="mz-seen">—</span></div>
+          </div>
+        </div>
+        <div class="modal-col-right">
+          <h4 class="col-heading">Saídas</h4>
+          <div id="mz-entities"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-danger" id="mz-remove">
+          <i data-lucide="trash-2" class="icon"></i> Remover do mesh
+        </button>
+        <div class="footer-actions">
+          <button type="button" class="btn btn-ghost" id="mz-cancel">Fechar</button>
+          <button type="submit" class="btn btn-primary">Salvar</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+HomeCore.mountHeader({
+  active: 'zigbee-devices',
+  actions: `<span class="status-chip" id="hdr-status"><span class="dot" id="br-dot"></span><span id="br-text">conectando…</span></span>`,
+});
+const s = document.createElement('style');
+s.textContent = `.status-chip { display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;background:var(--surface-2);font-size:11px;color:var(--text-muted); }`;
+document.head.appendChild(s);
+
+(() => {
+  const results = document.getElementById('results');
+  const empty = document.getElementById('empty');
+  const toastEl = document.getElementById('toast');
+  const modalZb = document.getElementById('modal-zb');
+  const formZb = document.getElementById('form-zb');
+
+  let snap = { devices: [], bridgeState: 'unknown' };
+  let cachedRooms = [];
+  let cachedFloors = [];
+  let modalIeee = null;
+  const cards = new Map();
+
+  // ── Helpers ─────────────────────────────────────────────────────────
+  function escapeHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+  }
+  function showToast(msg, type = '') {
+    toastEl.textContent = msg;
+    toastEl.className = 'toast show ' + type;
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(() => (toastEl.className = 'toast ' + type), 2800);
+  }
+  async function api(path, opts = {}) {
+    const r = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...opts });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || j.detail || r.statusText);
+    return j;
+  }
+  function slugify(s) {
+    return String(s || '').normalize('NFD').replace(/\p{Diacritic}/gu, '')
+      .toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  }
+
+  async function loadRoomsCache() {
+    if (cachedRooms.length) return cachedRooms;
+    try {
+      const data = await api('/api/areas');
+      cachedRooms = data.rooms || [];
+      cachedFloors = data.floors || [];
+    } catch { cachedRooms = []; cachedFloors = []; }
+    return cachedRooms;
+  }
+
+  function roomOptionsHtml(selectedId) {
+    const floors = cachedFloors.slice().sort((a, b) => (a.level ?? 0) - (b.level ?? 0));
+    const byFloor = new Map();
+    const orphans = [];
+    for (const r of cachedRooms) {
+      if (r.floorId && floors.find((f) => f.id === r.floorId)) {
+        const arr = byFloor.get(r.floorId) || [];
+        arr.push(r); byFloor.set(r.floorId, arr);
+      } else { orphans.push(r); }
+    }
+    const opt = (r) => `<option value="${r.id}" ${selectedId === r.id ? 'selected' : ''}>${escapeHtml(r.name)}</option>`;
+    const parts = [`<option value="">— sem cômodo —</option>`];
+    for (const f of floors) {
+      const list = byFloor.get(f.id);
+      if (!list || !list.length) continue;
+      parts.push(`<optgroup label="${escapeHtml(f.name)}">${list.map(opt).join('')}</optgroup>`);
+    }
+    if (orphans.length) parts.push(`<optgroup label="Sem andar">${orphans.map(opt).join('')}</optgroup>`);
+    return parts.join('');
+  }
+
+  // ── Status / LQI ────────────────────────────────────────────────────
+  function statusFromState(d) {
+    if (d.state && Object.keys(d.state).length) return { cls: 'online', label: 'online' };
+    if (d.disabled) return { cls: 'offline', label: 'desabilitado' };
+    if (d.interview_completed === false) return { cls: 'stale', label: 'pareando' };
+    return { cls: 'offline', label: 'sem dados' };
+  }
+
+  function lqiBars(lqi) {
+    let active = 0;
+    if (lqi != null) {
+      if (lqi >= 180) active = 4;
+      else if (lqi >= 130) active = 3;
+      else if (lqi >= 80) active = 2;
+      else if (lqi >= 40) active = 1;
+    }
+    const cls = active >= 3 ? 'active' : active === 2 ? 'active warn' : active === 1 ? 'active err' : '';
+    return `<span class="lqi" title="LQI ${lqi ?? '—'}">
+      ${[1,2,3,4].map((b) => `<span class="bar b${b}${b<=active?' '+cls:''}"></span>`).join('')}
+    </span>`;
+  }
+
+  // ── Detecção de tipo do device pra rendering ─────────────────────────
+  function detectKind(d) {
+    const ctrls = (d.controls || []).filter((c) => c.kind === 'light' || c.kind === 'switch');
+    if (ctrls.length) return 'control';
+    const st = d.state || {};
+    if ('action' in st || (d.action_values && d.action_values.length)) return 'button';
+    if ('temperature' in st || 'humidity' in st) return 'climate-sensor';
+    if ('contact' in st) return 'contact';
+    if ('occupancy' in st) return 'motion';
+    if (d.type === 'Router') return 'router';
+    return 'unknown';
+  }
+
+  function relTime(ts) {
+    if (!ts) return '';
+    const s = Math.max(0, Math.round((Date.now() - ts) / 1000));
+    if (s < 60) return `há ${s}s`;
+    if (s < 3600) return `há ${Math.round(s / 60)}min`;
+    if (s < 86400) return `há ${Math.round(s / 3600)}h`;
+    return `há ${Math.round(s / 86400)}d`;
+  }
+  function deviceIcon(kind) {
+    return ({
+      control: 'lightbulb',
+      button: 'mouse-pointer-click',
+      'climate-sensor': 'thermometer',
+      contact: 'door-open',
+      motion: 'activity',
+      unknown: 'hexagon',
+    })[kind] || 'hexagon';
+  }
+  function batteryIcon(pct) {
+    if (pct == null) return 'battery';
+    if (pct >= 80) return 'battery-full';
+    if (pct >= 50) return 'battery-medium';
+    if (pct >= 20) return 'battery-low';
+    return 'battery-warning';
+  }
+  function reading(label, value) {
+    return `<div class="reading">
+      <span class="rval">${value}</span>
+      <span class="rlabel">${escapeHtml(label)}</span>
+    </div>`;
+  }
+
+  function strip(cells, opts = {}) {
+    const cls = 'readings-strip' + (opts.solo ? ' solo' : '');
+    return `<div class="${cls}">${cells.join('')}</div>`;
+  }
+
+  function renderStripFor(d, kind) {
+    const st = d.state || {};
+    const battCell = st.battery != null
+      ? reading('Bateria', `${st.battery}%`)
+      : reading('Bateria', '—');
+
+    if (kind === 'climate-sensor') {
+      const t = st.temperature != null ? `${st.temperature}°C` : '—';
+      const h = st.humidity != null ? `${st.humidity}%` : '—';
+      return strip([reading('Temp.', t), reading('Umidade', h), battCell]);
+    }
+    if (kind === 'contact') {
+      const v = st.contact === undefined ? '—' : (st.contact ? 'Fechado' : 'Aberto');
+      return strip([reading('Estado', v), battCell]);
+    }
+    if (kind === 'motion') {
+      const v = st.occupancy === undefined ? '—' : (st.occupancy ? 'Detectado' : 'Sem movimento');
+      return strip([reading('Presença', v), battCell]);
+    }
+    if (kind === 'button') {
+      const action = st.action || null;
+      const ts = st._action_ts || null;
+      const left = action
+        ? `${escapeHtml(action)} <span style="font-weight:400;color:var(--text-muted);font-size:11px;margin-left:4px">${ts ? relTime(ts) : ''}</span>`
+        : '—';
+      return `<div class="readings-strip">
+        <div class="reading"><span class="rval">${left}</span><span class="rlabel">Última ação</span></div>
+        ${battCell}
+      </div>`;
+    }
+    if (kind === 'router') {
+      // Repetidor: só "Online"
+      return `<div class="readings-strip"><div class="reading solo"><span class="rval" style="color:var(--ok)">Online</span><span class="rlabel">Repetidor</span></div></div>`;
+    }
+    // unknown — sem strip
+    return '';
+  }
+
+  // ── Card ────────────────────────────────────────────────────────────
+  // visibleEids: lista de entity_ids visíveis neste card (subset de controls).
+  // Se omitido, mostra todos. Para devices sem controls, ignora.
+  function renderCardBody(d, roomName, visibleEids) {
+    const status = statusFromState(d);
+    const baseName = d.base_name || d.display_name || d.friendly_name;
+    const fullName = roomName ? `[${roomName}] ${baseName}` : baseName;
+    const allControls = (d.controls || []).filter((c) => c.kind === 'light' || c.kind === 'switch');
+    const sLabelByEid = new Map(allControls.map((c, i) => [c.entity_id, `S${i + 1}`]));
+    const controls = visibleEids
+      ? allControls.filter((c) => visibleEids.includes(c.entity_id))
+      : allControls;
+    const lqi = d.state?.linkquality;
+    const mfr = d.manufacturer || d.vendor || '—';
+    const kind = detectKind(d);
+
+    const togglesHtml = controls.length ? `<div class="channels">
+      ${controls.map((c) => {
+        const on = isControlOn(d, c);
+        const label = sLabelByEid.get(c.entity_id) || 'S?';
+        return `<label class="channel">
+          <span class="ch-label">${label}</span>
+          <span class="sw">
+            <input type="checkbox" class="sw-input"
+              data-state-prop="${escapeHtml(c.state_property)}"
+              ${on ? 'checked' : ''}>
+            <span class="slider"></span>
+          </span>
+        </label>`;
+      }).join('')}
+    </div>` : '';
+
+    const stripHtml = controls.length ? '' : renderStripFor(d, kind);
+
+    return `
+      <div class="info">
+        <div class="name">${escapeHtml(fullName)}</div>
+        <div class="meta">
+          <span><span class="status-dot ${status.cls}"></span>${status.label}</span>
+          <span class="cat-badge">${escapeHtml(controls[0]?.kind || kind)}</span>
+          ${lqi != null ? `<span class="cat-badge">${lqiBars(lqi)} ${lqi}</span>` : ''}
+          <span class="ip">${escapeHtml(mfr)}${d.model ? ' · ' + escapeHtml(d.model) : ''}</span>
+          <span class="cat-badge vendor-tag zigbee">Zigbee</span>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="icon-btn sm settings-btn" title="configurações">
+          <i data-lucide="settings-2" class="icon"></i>
+        </button>
+      </div>
+      ${togglesHtml}
+      ${stripHtml}
+    `;
+  }
+
+  function isControlOn(d, c) {
+    const v = (d.state || {})[c.state_property];
+    return v === 'ON' || v === 1 || v === true;
+  }
+
+  function refreshCard(cardKey) {
+    const card = cards.get(cardKey);
+    if (!card) return;
+    const ieee = card.dataset.ieee;
+    const d = (snap.devices || []).find((x) => x.ieee_address === ieee);
+    if (!d) return;
+    const roomName = card.dataset.roomName || '';
+    const eids = card.dataset.eids ? card.dataset.eids.split(',') : null;
+    card.innerHTML = renderCardBody(d, roomName, eids);
+    card.querySelectorAll('.sw-input').forEach((sw) => {
+      sw.addEventListener('change', () => doToggle(d, sw));
+    });
+    card.querySelector('.settings-btn')?.addEventListener('click', () => openModal(ieee));
+    HomeCore.refreshIcons();
+  }
+
+  async function doToggle(d, checkbox) {
+    const stateProp = checkbox.dataset.stateProp || 'state';
+    checkbox.disabled = true;
+    try {
+      const payload = {};
+      payload[stateProp] = 'TOGGLE';
+      await api('/api/zigbee/set', {
+        method: 'POST',
+        body: JSON.stringify({ friendly_name: d.friendly_name, payload }),
+      });
+    } catch (e) {
+      checkbox.checked = !checkbox.checked;
+      showToast(`${d.display_name}: ${e.message}`, 'err');
+    } finally {
+      checkbox.disabled = false;
+      setTimeout(loadState, 600);
+    }
+  }
+
+  // ── Agrupar por cômodo. Devices com saídas (light/switch) usam room_id por saída;
+  //    devices sem saídas (sensor/botão) usam room_id device-level. ──
+  function groupByRoom(devices, rooms) {
+    const groups = new Map();
+    for (const d of devices) {
+      const ctrls = (d.controls || []).filter((c) => c.kind === 'light' || c.kind === 'switch');
+      if (!ctrls.length) {
+        // Sensor/botão: agrupa pelo room_id device-level (ou "none")
+        const rid = d.room_id || null;
+        const key = rid || 'none';
+        const arr = groups.get(key) || [];
+        arr.push({ device: d, visibleEids: null });
+        groups.set(key, arr);
+        continue;
+      }
+      const eidsByRoom = new Map();
+      for (const c of ctrls) {
+        if (!c.entity_id) continue;
+        const rid = c.room_id || null;
+        const arr = eidsByRoom.get(rid) || [];
+        arr.push(c.entity_id);
+        eidsByRoom.set(rid, arr);
+      }
+      if (!eidsByRoom.size) {
+        const arr = groups.get('none') || [];
+        arr.push({ device: d, visibleEids: null });
+        groups.set('none', arr);
+        continue;
+      }
+      for (const [rid, eids] of eidsByRoom.entries()) {
+        const key = rid || 'none';
+        const arr = groups.get(key) || [];
+        arr.push({ device: d, visibleEids: eids });
+        groups.set(key, arr);
+      }
+    }
+    const ordered = [];
+    for (const r of rooms) {
+      if (groups.has(r.id)) ordered.push({ roomId: r.id, room: r, items: groups.get(r.id) });
+    }
+    if (groups.has('none')) ordered.push({ roomId: null, room: null, items: groups.get('none') });
+    return ordered;
+  }
+
+  async function renderAll() {
+    await loadRoomsCache();
+    // Lista todos os devices, exceto coordenador
+    const list = (snap.devices || []).filter((d) => d.type !== 'Coordinator');
+    if (!list.length) {
+      results.innerHTML = '';
+      results.appendChild(empty);
+      empty.style.display = '';
+      cards.clear();
+      return;
+    }
+    const groups = groupByRoom(list, cachedRooms);
+    results.innerHTML = '';
+    empty.style.display = 'none';
+    const seen = new Set();
+
+    for (const grp of groups) {
+      const section = document.createElement('section');
+      section.className = 'room-group';
+      const total = grp.items.length;
+      section.innerHTML = `
+        <div class="room-header">
+          <h3>${grp.room ? escapeHtml(grp.room.name) : 'Sem cômodo'}</h3>
+          <span class="count">${total} ${total === 1 ? 'módulo' : 'módulos'}</span>
+        </div>
+        <div class="room-grid"></div>
+      `;
+      const grid = section.querySelector('.room-grid');
+      for (const { device: d, visibleEids } of grp.items) {
+        const cardKey = `${d.ieee_address}@${grp.roomId || 'none'}`;
+        seen.add(cardKey);
+        let card = cards.get(cardKey);
+        if (!card) {
+          card = document.createElement('div');
+          card.className = 'card dev-card';
+          card.dataset.ieee = d.ieee_address;
+          cards.set(cardKey, card);
+        }
+        card.dataset.roomName = grp.room ? grp.room.name : '';
+        card.dataset.eids = visibleEids ? visibleEids.join(',') : '';
+        grid.appendChild(card);
+        refreshCard(cardKey);
+      }
+      results.appendChild(section);
+    }
+    for (const [key, el] of [...cards.entries()]) {
+      if (!seen.has(key)) { el.remove?.(); cards.delete(key); }
+    }
+  }
+
+  // ── Modal ───────────────────────────────────────────────────────────
+  async function openModal(ieee) {
+    const d = (snap.devices || []).find((x) => x.ieee_address === ieee);
+    if (!d) return;
+    modalIeee = ieee;
+    await loadRoomsCache();
+
+    document.getElementById('mz-title').textContent = d.base_name || d.display_name;
+    document.getElementById('mz-subtitle').textContent = `${d.manufacturer || ''}${d.model ? ' · ' + d.model : ''}`;
+    document.getElementById('mz-name').value = d.base_name || d.display_name || '';
+    document.getElementById('mz-ieee').textContent = d.ieee_address;
+    document.getElementById('mz-friendly').textContent = d.friendly_name;
+    document.getElementById('mz-mfr').textContent = d.manufacturer || '—';
+    document.getElementById('mz-model').textContent = d.model || '—';
+    document.getElementById('mz-power').textContent = d.power_source || '—';
+    document.getElementById('mz-lqi').innerHTML = d.state?.linkquality != null
+      ? `${lqiBars(d.state.linkquality)} ${d.state.linkquality}` : '—';
+    document.getElementById('mz-seen').textContent = d.last_seen
+      ? new Date(d.last_seen).toLocaleString('pt-BR') : '—';
+
+    // Saídas (entities) — uma seção por control com nome + cômodo
+    const wrap = document.getElementById('mz-entities');
+    const ctrls = (d.controls || []).filter((c) => c.kind === 'light' || c.kind === 'switch');
+
+    // Device-level room (visível só pra devices sem saídas)
+    const roomField = document.getElementById('mz-room-field');
+    const roomSel = document.getElementById('mz-room');
+    if (!ctrls.length) {
+      roomField.style.display = '';
+      roomSel.innerHTML = roomOptionsHtml(d.room_id || '');
+    } else {
+      roomField.style.display = 'none';
+    }
+
+    // Header da coluna direita
+    const rightHeading = modalZb.querySelector('.modal-col-right .col-heading');
+    if (rightHeading) rightHeading.textContent = ctrls.length ? 'Saídas' : 'Informações';
+
+    wrap.innerHTML = ctrls.length ? ctrls.map((c, idx) => {
+      const isOn = isControlOn(d, c);
+      const name = c.entity_name || `${d.base_name || d.display_name}${c.endpoint ? ' ' + c.endpoint : ''}`;
+      const sLabel = `S${idx + 1}`;
+      const epHint = c.endpoint ? ` · ${escapeHtml(c.endpoint)}` : '';
+      const kindLabel = c.kind === 'light' ? 'Luz' : 'Saída';
+      return `
+        <section class="channel-section" data-idx="${idx}">
+          <div class="channel-header">
+            <div class="channel-title">
+              <span class="ch-tag">${sLabel}</span>
+              <span>${kindLabel}${epHint}</span>
+            </div>
+            <span class="channel-state">
+              <span class="status-dot ${isOn ? 'online' : 'offline'}"></span>${isOn ? 'ligada' : 'desligada'}
+            </span>
+          </div>
+          <div class="channel-grid">
+            <div class="field full">
+              <label>Nome amigável (entity)</label>
+              <input class="input ent-name" type="text" maxlength="80" value="${escapeHtml(name)}">
+              <input type="hidden" class="ent-id" value="${escapeHtml(c.entity_id || '')}">
+            </div>
+            <div class="field full">
+              <label>Cômodo</label>
+              <select class="select ent-room">${roomOptionsHtml(c.room_id || '')}</select>
+            </div>
+          </div>
+        </section>
+      `;
+    }).join('') : (() => {
+      const kind = detectKind(d);
+      const st = d.state || {};
+      const rows = [];
+      if (kind === 'climate-sensor') {
+        if (st.temperature != null) rows.push(['Temperatura', `${st.temperature} °C`]);
+        if (st.humidity != null) rows.push(['Umidade', `${st.humidity} %`]);
+      }
+      if (kind === 'contact') rows.push(['Estado', st.contact ? 'fechado' : 'aberto']);
+      if (kind === 'motion') rows.push(['Presença', st.occupancy ? 'detectado' : 'sem movimento']);
+      if (st.battery != null) rows.push(['Bateria', `${st.battery} %`]);
+      const readings = rows.length
+        ? `<div class="tech-details" style="margin-top:0">${rows.map(([k, v]) => `<div class="info-row"><span class="k">${escapeHtml(k)}</span><span class="v">${escapeHtml(String(v))}</span></div>`).join('')}</div>`
+        : '';
+
+      // Ações reconhecidas (botões): renderiza cada uma como uma "saída" diagnóstica.
+      // A última disparada fica destacada.
+      const actions = d.action_values || [];
+      let actionsHtml = '';
+      if (actions.length) {
+        const last = st.action || null;
+        actionsHtml = `
+          <div style="margin-top:14px">
+            <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Ações reconhecidas</div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px">
+              ${actions.map((a) => `
+                <span class="cat-badge ${a === last ? 'action-active' : ''}" style="${a === last ? 'background:var(--accent);color:#fff' : ''}">
+                  ${escapeHtml(a)}${a === last ? ' ←' : ''}
+                </span>
+              `).join('')}
+            </div>
+            ${last ? `<div class="hint" style="margin-top:6px">Última disparada: <strong>${escapeHtml(last)}</strong></div>` : '<div class="hint" style="margin-top:6px">Nenhuma ação registrada ainda.</div>'}
+          </div>`;
+      }
+
+      return readings + actionsHtml || '<p class="hint">Sem leituras disponíveis.</p>';
+    })();
+
+    modalZb.classList.add('show');
+    HomeCore.refreshIcons();
+  }
+
+  document.getElementById('mz-cancel').onclick = () => modalZb.classList.remove('show');
+  modalZb.addEventListener('click', (e) => { if (e.target === modalZb) modalZb.classList.remove('show'); });
+
+  formZb.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!modalIeee) return;
+    const fd = new FormData(formZb);
+    const device_name = fd.get('device_name')?.toString().trim() || null;
+    const roomField = document.getElementById('mz-room-field');
+    const deviceRoomVisible = roomField.style.display !== 'none';
+    const room_id = deviceRoomVisible ? (fd.get('room_id')?.toString() || null) : undefined;
+
+    const entities = [];
+    document.querySelectorAll('#mz-entities .channel-section').forEach((sec) => {
+      const entity_id = sec.querySelector('.ent-id').value;
+      if (!entity_id) return;
+      entities.push({
+        entity_id,
+        name: sec.querySelector('.ent-name').value.trim() || null,
+        room_id: sec.querySelector('.ent-room').value || null,
+      });
+    });
+
+    const body = { ieee_address: modalIeee, device_name, entities };
+    if (room_id !== undefined) body.room_id = room_id;
+
+    try {
+      await api('/api/zigbee/update', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+
+      showToast('Salvo.', 'ok');
+      modalZb.classList.remove('show');
+      loadState();
+    } catch (err) {
+      showToast(`Falhou: ${err.message}`, 'err');
+    }
+  });
+
+  document.getElementById('mz-remove').onclick = async () => {
+    if (!modalIeee) return;
+    if (!confirm(`Remover ${modalIeee} do mesh? Vai precisar parear de novo.`)) return;
+    const tryRemove = async (force) => {
+      const r = await fetch('/api/zigbee/remove', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ id: modalIeee, force }),
+      });
+      const j = await r.json().catch(() => ({}));
+      // z2m responde { status: 'ok' | 'error', error: '...' } com HTTP 200
+      const ok = r.ok && j.status === 'ok';
+      return { ok, error: j.error || j.detail || (r.ok ? null : r.statusText) };
+    };
+    try {
+      let res = await tryRemove(false);
+      if (!res.ok) {
+        const isUnreachable = /delivery failed|timeout|unreachable/i.test(res.error || '');
+        const msg = isUnreachable
+          ? `O device não respondeu (provavelmente offline). Forçar remoção do coordenador? Isso tira da rede sem avisar o device.`
+          : `Falhou: ${res.error}. Forçar remoção mesmo assim?`;
+        if (!confirm(msg)) {
+          showToast(`Erro: ${res.error}`, 'err');
+          return;
+        }
+        res = await tryRemove(true);
+        if (!res.ok) {
+          showToast(`Forçar também falhou: ${res.error}`, 'err');
+          return;
+        }
+      }
+      showToast('Removido.', 'ok');
+      modalZb.classList.remove('show');
+      loadState();
+    } catch (e) {
+      showToast(`Erro: ${e.message}`, 'err');
+    }
+  };
+
+  // ── Carga / refresh ─────────────────────────────────────────────────
+  async function loadState() {
+    try {
+      snap = await api('/api/zigbee/state');
+      const dot = document.getElementById('br-dot');
+      const txt = document.getElementById('br-text');
+      if (dot) dot.className = 'dot ' + (snap.bridgeState === 'online' ? 'ok' : 'err');
+      if (txt) txt.textContent = snap.bridgeState;
+      await renderAll();
+    } catch (e) {
+      showToast(e.message, 'err');
+    }
+  }
+
+  // Deeplink: ?cfg=<ieee> → abre modal direto
+  async function tryAutoOpenFromQuery() {
+    const params = new URLSearchParams(location.search);
+    const ieee = params.get('cfg');
+    if (!ieee) return;
+    // Espera state carregar antes de abrir
+    let attempts = 0;
+    const tryOpen = () => {
+      const found = (snap.devices || []).find((x) => x.ieee_address === ieee);
+      if (found) {
+        openModal(ieee);
+        // Limpa query da URL
+        const url = new URL(location.href);
+        url.searchParams.delete('cfg');
+        history.replaceState({}, '', url);
+      } else if (attempts++ < 10) {
+        setTimeout(tryOpen, 400);
+      }
+    };
+    tryOpen();
+  }
+
+  loadState().then(tryAutoOpenFromQuery);
+  setInterval(loadState, 5000);
+})();
+</script>
+
+</body>
+</html>

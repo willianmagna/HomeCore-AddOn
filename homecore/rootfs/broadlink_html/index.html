@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Captura de Código IR - Broadlink</title>
+    <style>
+        body { font-family: sans-serif; line-height: 1.6; margin: 2em; background-color: #f4f4f4; color: #333; }
+        .container { max-width: 800px; margin: auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        h1 { color: #0056b3; }
+        form { margin-top: 20px; }
+        label { font-weight: bold; font-size: 1.1em; display:block; }
+        input[type="text"] { width: 100%; padding: 10px; margin-top: 5px; margin-bottom: 20px; border-radius: 4px; border: 1px solid #ccc; box-sizing: border-box; }
+        button { background-color: #007bff; color: white; padding: 12px 20px; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; width: 100%; }
+        button:hover { background-color: #0056b3; }
+        .instructions { background-color: #eef; padding: 15px; border-left: 5px solid #0056b3; border-radius: 5px; margin-top: 20px; }
+        .row { display:grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        @media (max-width: 640px) { .row { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Captura de Código IR - Broadlink RM</h1>
+        <p>Esta ferramenta permite capturar e salvar códigos de controle remoto infravermelho (IR) em um arquivo CSV.</p>
+
+        <form id="form-aprender" action="/cgi-bin/aprender.py" method="post" autocomplete="on">
+            <div class="row">
+                <div>
+                    <label for="marca">Marca</label>
+                    <input type="text" id="marca" name="marca" placeholder="Ex: Samsung, LG, Philco" required>
+                </div>
+                <div>
+                    <label for="modelo">Modelo</label>
+                    <input type="text" id="modelo" name="modelo" placeholder="Ex: AR09, LN32C450, etc." required>
+                </div>
+            </div>
+            <label for="nome_botao">Botão</label>
+            <input type="text" id="nome_botao" name="nome_botao" placeholder="Ex: Ligar, Desligar, Temp+ ..." required>
+
+            <button type="submit">📡 Iniciar Captura de Código</button>
+        </form>
+
+        <div class="instructions">
+            <h3>Como usar:</h3>
+            <ol>
+                <li>Preencha <b>Marca</b> e <b>Modelo</b> (serão lembrados para a próxima captura).</li>
+                <li>Digite o nome do <b>Botão</b> que deseja aprender.</li>
+                <li>Clique em <b>Iniciar Captura de Código</b> e aponte o controle para o Broadlink.</li>
+                <li>O resultado mostrará os códigos e confirmará o salvamento na planilha CSV.</li>
+                <li>Os códigos serão adicionados ao arquivo <code>codigos_ir.csv</code>.</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        // Prefill a partir do localStorage
+        (function() {
+            try {
+                var savedMarca = localStorage.getItem('aprender_marca') || '';
+                var savedModelo = localStorage.getItem('aprender_modelo') || '';
+                if (savedMarca) document.getElementById('marca').value = savedMarca;
+                if (savedModelo) document.getElementById('modelo').value = savedModelo;
+            } catch(e) { /* ignore */ }
+        })();
+
+        // Salvar marca e modelo ao enviar
+        document.getElementById('form-aprender').addEventListener('submit', function() {
+            try {
+                localStorage.setItem('aprender_marca', document.getElementById('marca').value || '');
+                localStorage.setItem('aprender_modelo', document.getElementById('modelo').value || '');
+            } catch(e) { /* ignore */ }
+        });
+    </script>
+</body>
+</html>
