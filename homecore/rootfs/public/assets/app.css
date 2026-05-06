@@ -510,7 +510,7 @@ body > .app-main {
   display: flex; align-items: center; gap: 10px;
   padding: 12px 18px;
   border-bottom: 1px solid var(--border);
-  min-height: 51px;
+  height: 56px; min-height: 56px;
 }
 .app-sidebar .brand-icon {
   width: 32px; height: 32px;
@@ -587,7 +587,7 @@ body > .app-main {
 .app-header {
   display: flex; align-items: center;
   gap: 14px;
-  height: 51px; min-height: 51px;
+  height: 56px; min-height: 56px;
   padding: 0 28px;
   background: color-mix(in srgb, var(--bg-elevated) 85%, transparent);
   backdrop-filter: blur(14px);
