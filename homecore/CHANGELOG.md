@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.1
+
+- Corrige `s6-envdir: fatal: unable to envdir /run/s6/container_environment`. O `ENTRYPOINT tini` que eu tinha posto impedia o s6-overlay (que vem na base do HA) de subir como PID 1, e sem isso o `with-contenv bashio` no `run.sh` não tinha o env do supervisor pra ler.
+- Adiciona icon/logo do HomeCore.
+
 ## 0.2.0
 
 - **Ingress habilitado** — clique em "OPEN WEB UI" dentro do HA agora abre o HomeCore via Nabu Casa, sem VPN.

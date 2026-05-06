@@ -1,14 +1,13 @@
 ARG BUILD_FROM=ghcr.io/home-assistant/aarch64-base:3.18
 FROM ${BUILD_FROM}
 
-# Toolchain pra compilar módulos nativos (better-sqlite3) + node + tini
+# Toolchain pra compilar módulos nativos (better-sqlite3) + node
 RUN apk add --no-cache \
     nodejs \
     npm \
     python3 \
     make \
-    g++ \
-    tini
+    g++
 
 WORKDIR /app
 
@@ -29,5 +28,4 @@ COPY proxy.js /proxy.js
 COPY run.sh /run.sh
 RUN chmod +x /run.sh
 
-ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["/run.sh"]
