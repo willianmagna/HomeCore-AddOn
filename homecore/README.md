@@ -17,13 +17,10 @@ Marketplace de automação residencial — Sonoff/Tuya Wi-Fi, Zigbee e IR Broadl
 
 ## Acesso à interface
 
-Como o ingress ainda não está habilitado nesta versão, acesse direto:
+Duas formas:
 
-```
-http://<ip-do-home-assistant>:3010
-```
-
-(`host_network: true` faz o HomeCore escutar direto na rede local do HA.)
+- **Pela UI do HA** (Nabu Casa, ingress): clique em **OPEN WEB UI** na página do add-on. Funciona de qualquer lugar, sem VPN.
+- **Direto na LAN**: `http://<ip-do-home-assistant>:3010`
 
 ## O que o add-on faz
 

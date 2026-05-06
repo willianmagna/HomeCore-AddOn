@@ -22,6 +22,9 @@ RUN npm install --omit=dev --no-audit --no-fund \
 # Limpa toolchain de build pra reduzir imagem
 RUN apk del python3 make g++
 
+# Proxy de ingress (reescreve URLs absolutas no HTML)
+COPY proxy.js /proxy.js
+
 # Script de inicialização do add-on
 COPY run.sh /run.sh
 RUN chmod +x /run.sh

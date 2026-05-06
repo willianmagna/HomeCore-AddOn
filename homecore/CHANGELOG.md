@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.0
+
+- **Ingress habilitado** — clique em "OPEN WEB UI" dentro do HA agora abre o HomeCore via Nabu Casa, sem VPN.
+- Mini proxy interno (porta 8099) intercepta URLs absolutas (`/api/*`, WebSocket, XHR) e prefixa com o caminho do ingress no browser. Sem patch no HomeCore.
+- Acesso LAN direto via porta 3010 continua funcionando pra dev.
+
 ## 0.1.0
 
 - Versão inicial do add-on.

@@ -23,10 +23,23 @@ if [ -e /app/data ] && [ ! -L /app/data ]; then
 fi
 ln -sfn /data /app/data
 
-# ─── Porta ───
+# ─── Portas ───
+# 3010 — HomeCore standalone (acesso LAN direto: http://<ip-ha>:3010)
+# 8099 — proxy de ingress (acesso via UI do HA / Nabu Casa)
 export PORT=3010
+export INGRESS_PORT=8099
+export TARGET_HOST=127.0.0.1
+export TARGET_PORT=3010
 
-# ─── Sobe o HomeCore ───
+# ─── Proxy de ingress em background ───
+bashio::log.info "Iniciando proxy de ingress na porta ${INGRESS_PORT}..."
+node /proxy.js &
+PROXY_PID=$!
+
+# Se o proxy morrer, derruba o container pra supervisor reiniciar
+trap "kill ${PROXY_PID} 2>/dev/null; exit 0" SIGTERM SIGINT
+
+# ─── Sobe o HomeCore (foreground) ───
 cd /app
 bashio::log.info "Iniciando HomeCore na porta ${PORT}..."
 exec node server.js

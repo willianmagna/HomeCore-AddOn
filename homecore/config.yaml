@@ -1,5 +1,5 @@
 name: HomeCore
-version: "0.1.0"
+version: "0.2.0"
 slug: homecore
 description: Marketplace de automação residencial — Sonoff/Tuya Wi-Fi, Zigbee e IR Broadlink integrados via MQTT Discovery.
 url: https://github.com/willianmagna/HomeCore-AddOn
@@ -17,6 +17,10 @@ map:
 ports:
   3010/tcp: 3010
 ports_description:
-  3010/tcp: HomeCore Web UI
+  3010/tcp: HomeCore Web UI (acesso direto LAN)
+ingress: true
+ingress_port: 8099
+panel_icon: mdi:home-automation
+panel_title: HomeCore
 options: {}
 schema: {}
