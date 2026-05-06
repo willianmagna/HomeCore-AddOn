@@ -4,8 +4,15 @@ const { BroadlinkDevice, discover: broadlinkDiscover } = require('./broadlink');
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const CODES_DIR = path.join(DATA_DIR, 'smartir');
+const LIBRARY_MANIFEST_FILE = path.join(CODES_DIR, '.library_manifest.json');
 const DEVICES_FILE = path.join(DATA_DIR, 'ir-devices.json');
 const EMITTERS_FILE = path.join(DATA_DIR, 'devices.json');
+
+// IDs 1000-8999 = sincronizados do GitHub (HomeCoreIR), 9000+ = capturados localmente
+const GITHUB_REPO = 'willianmagna/HomeCoreIR';
+const LIBRARY_ID_BASE = 1000;
+const LIBRARY_ID_MAX = 8999;
+const LOCAL_ID_BASE = 9000;
 
 // ── storage ──
 
@@ -28,16 +35,30 @@ function loadEmitters() {
   return loadJSON(EMITTERS_FILE, { devices: [] }).devices;
 }
 
+function loadLibraryManifest() {
+  return loadJSON(LIBRARY_MANIFEST_FILE, {});
+}
+function saveLibraryManifest(map) {
+  fs.mkdirSync(CODES_DIR, { recursive: true });
+  saveJSON(LIBRARY_MANIFEST_FILE, map);
+}
+
 function listCodeFiles() {
+  const manifest = loadLibraryManifest();
   try {
     return fs.readdirSync(CODES_DIR)
-      .filter((f) => f.endsWith('.json'))
+      .filter((f) => f.endsWith('.json') && !f.startsWith('.'))
       .map((f) => {
         const full = path.join(CODES_DIR, f);
+        const id = f.replace(/\.json$/, '');
+        const num = parseInt(id, 10);
+        const isLocal = !isNaN(num) && num >= LOCAL_ID_BASE;
         try {
           const d = JSON.parse(fs.readFileSync(full, 'utf-8'));
           return {
-            id: f.replace(/\.json$/, ''),
+            id,
+            source: isLocal ? 'local' : 'github',
+            github_filename: manifest[id] || null,
             device_type: inferDeviceType(d),
             manufacturer: d.manufacturer || '',
             models: d.supportedModels || [],
@@ -183,9 +204,57 @@ function deleteCode(id) {
 }
 
 function nextCodeId() {
-  const existing = listCodeFiles().map((c) => parseInt(c.id, 10)).filter((n) => !isNaN(n));
-  const max = existing.length ? Math.max(...existing) : 1000;
-  return String(Math.max(max, 1000) + 1);
+  // Captura/import local sempre aloca a partir de 9000.
+  const existing = listCodeFiles()
+    .map((c) => parseInt(c.id, 10))
+    .filter((n) => !isNaN(n) && n >= LOCAL_ID_BASE);
+  const max = existing.length ? Math.max(...existing) : LOCAL_ID_BASE - 1;
+  return String(max + 1);
+}
+
+async function syncLibraryFromGitHub() {
+  // Lista arquivos .json na raiz do repo, baixa cada um e regrava em CODES_DIR
+  // com IDs sequenciais 1000+. Substitui o conteudo anterior do range 1000-8999.
+  const apiUrl = `https://api.github.com/repos/${GITHUB_REPO}/contents/`;
+  const r = await fetch(apiUrl, { headers: { 'User-Agent': 'HomeCore' } });
+  if (!r.ok) throw new Error(`GitHub API ${r.status}: ${r.statusText}`);
+  const entries = await r.json();
+  const files = entries
+    .filter((e) => e.type === 'file' && e.name.endsWith('.json'))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  fs.mkdirSync(CODES_DIR, { recursive: true });
+
+  // Wipe range 1000-8999
+  for (const f of fs.readdirSync(CODES_DIR)) {
+    if (!f.endsWith('.json') || f.startsWith('.')) continue;
+    const n = parseInt(f.replace(/\.json$/, ''), 10);
+    if (!isNaN(n) && n >= LIBRARY_ID_BASE && n <= LIBRARY_ID_MAX) {
+      fs.unlinkSync(path.join(CODES_DIR, f));
+    }
+  }
+
+  const manifest = {};
+  let id = LIBRARY_ID_BASE;
+  let imported = 0;
+  const errors = [];
+  for (const f of files) {
+    if (id > LIBRARY_ID_MAX) { errors.push(`limite ${LIBRARY_ID_MAX} atingido`); break; }
+    try {
+      const raw = await fetch(f.download_url, { headers: { 'User-Agent': 'HomeCore' } });
+      if (!raw.ok) throw new Error(`HTTP ${raw.status}`);
+      const text = await raw.text();
+      JSON.parse(text); // valida
+      fs.writeFileSync(path.join(CODES_DIR, `${id}.json`), text, 'utf-8');
+      manifest[String(id)] = f.name;
+      imported++;
+      id++;
+    } catch (e) {
+      errors.push(`${f.name}: ${e.message}`);
+    }
+  }
+  saveLibraryManifest(manifest);
+  return { imported, total: files.length, errors, repo: GITHUB_REPO };
 }
 
 function importCodeFromText(rawText, suggestedId) {
@@ -468,4 +537,5 @@ module.exports = {
   applyState: applyStateNotify,
   sendCommand: sendCommandNotify,
   onDeviceChange,
+  syncLibraryFromGitHub,
 };

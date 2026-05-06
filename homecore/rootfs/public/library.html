@@ -10,6 +10,14 @@
 <script src="assets/app.js"></script>
 <style>
   body, html { overflow: hidden; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  /* Empurra acoes pra direita da subnav alinhadas com as abas */
+  nav.page-subnav { display: flex !important; width: 100%; }
+  nav.page-subnav .subnav-actions {
+    margin-left: auto;
+    display: flex; align-items: center; gap: 8px;
+    padding-bottom: 6px;
+  }
   .page-layout {
     display: grid;
     grid-template-columns: 340px 1fr;
@@ -42,6 +50,7 @@
   }
   .code-item:hover { background: var(--surface-2); }
   .code-item.selected { background: var(--accent-weak); }
+  .code-item .code-item-icon { width: 18px; height: 18px; color: var(--text-muted); flex-shrink: 0; }
   .code-item .info { flex: 1; min-width: 0; }
   .code-item .title {
     font-weight: 500; font-size: 13px; margin-bottom: 3px; color: var(--text);
@@ -104,7 +113,8 @@
   .op-tab:hover { background: var(--surface-3); color: var(--text); }
   .op-tab.active { background: var(--accent); color: white; border-color: var(--accent); }
   .op-tab.off-tab { margin-left: auto; }
-  .op-tab.off-tab.active { background: var(--err); border-color: var(--err); }
+  .op-tab.off-tab:hover { background: color-mix(in srgb, var(--err) 12%, transparent); color: var(--err); border-color: color-mix(in srgb, var(--err) 35%, var(--border)); }
+  .op-tab.off-tab.has { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 35%, var(--border)); }
 
   .swing-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; font-size: 12px; color: var(--text-muted); }
   .swing-row select { padding: 5px 8px; border-radius: var(--r-sm); border: 1px solid var(--border); background: var(--surface); color: var(--text); font: inherit; font-size: 12px; }
@@ -199,12 +209,6 @@
         <i data-lucide="search" class="icon icon-search"></i>
         <input class="input" id="search" placeholder="Buscar marca / modelo..." />
       </div>
-      <button class="icon-btn" id="btn-upload" title="Importar JSON" aria-label="Importar">
-        <i data-lucide="upload" class="icon"></i>
-      </button>
-      <button class="icon-btn" id="btn-new" title="Novo código vazio" aria-label="Novo">
-        <i data-lucide="plus" class="icon"></i>
-      </button>
     </div>
     <input type="file" id="file-input" accept=".json,application/json" style="display: none;" multiple />
     <div id="list"></div>
@@ -248,6 +252,24 @@
 
 <script>
 HomeCore.mountHeader({ icon: 'library', title: 'Biblioteca IR', active: 'library' });
+
+// Injeta botoes de Atualizar/Importar a direita da subnav (alinhados com as abas)
+(function attachSubnavActions() {
+  const subnav = document.querySelector('nav.page-subnav');
+  if (!subnav) return;
+  const actions = document.createElement('div');
+  actions.className = 'subnav-actions';
+  actions.innerHTML = `
+    <button class="btn btn-ghost btn-sm" id="btn-sync" title="Atualizar biblioteca do GitHub">
+      <i data-lucide="refresh-cw" class="icon"></i>Atualizar
+    </button>
+    <button class="btn btn-ghost btn-sm" id="btn-upload" title="Importar JSON">
+      <i data-lucide="upload" class="icon"></i>Importar
+    </button>
+  `;
+  subnav.appendChild(actions);
+  HomeCore.refreshIcons();
+})();
 
 let library = [];
 let selectedId = null;
@@ -313,20 +335,22 @@ function renderList() {
   }
   el.innerHTML = filtered.map((c) => {
     const models = (c.models || []).filter(Boolean).join(', ');
-    const brand = c.manufacturer || '(sem fabricante)';
-    const title = models ? `${brand} — ${models}` : brand;
+    const brand = c.manufacturer || 'sem fabricante';
+    const title = models ? `[${brand}] ${models}` : `[${brand}]`;
     const iconMap = { climate: 'thermometer-snowflake', media_player: 'tv', remote: 'radio' };
-    const tintMap = { climate: 'tint-info', media_player: 'tint-warn', remote: 'tint-accent' };
     const icon = iconMap[c.device_type] || 'file-code-2';
-    const tint = tintMap[c.device_type] || 'tint-accent';
+    const localBadge = c.source === 'local'
+      ? '<i data-lucide="graduation-cap" class="icon" style="width:13px;height:13px;color:var(--accent)" title="Capturado localmente"></i>'
+      : '';
     return `
     <div class="code-item ${c.id === selectedId ? 'selected' : ''}" data-id="${esc(c.id)}">
-      <div class="m-tile sm ${tint}"><i data-lucide="${icon}" class="icon"></i></div>
+      <i data-lucide="${icon}" class="icon code-item-icon"></i>
       <div class="info">
         <div class="title">${esc(title)}</div>
         <div class="meta">
           <span class="badge ${esc(c.device_type)}">${esc(c.device_type)}</span>
           <span>#${esc(c.id)}</span>
+          ${localBadge}
         </div>
       </div>
     </div>`;
@@ -428,33 +452,24 @@ function renderClimate(j) {
   if (!activeOp || !ops.includes(activeOp)) activeOp = ops[0] || null;
   if (!activeSwing || !swings.includes(activeSwing)) activeSwing = swings[0];
 
+  const offHas = typeof j.commands?.off === 'string' && j.commands.off.length > 0;
   const opTabs = ops.map((op) => `<button class="op-tab ${op === activeOp ? 'active' : ''}" data-op="${esc(op)}">${esc(op)}</button>`).join('') +
-                 `<button class="op-tab off-tab ${activeOp === '__off__' ? 'active' : ''}" data-op="__off__"><i data-lucide="power" class="icon" style="width:12px;height:12px;vertical-align:-2px"></i> Off</button>`;
+                 `<button class="op-tab off-tab ${offHas ? 'has' : ''}" data-op="__off__" title="${offHas ? 'Editar comando OFF' : 'Capturar comando OFF'}"><i data-lucide="power" class="icon" style="width:12px;height:12px;vertical-align:-2px"></i> Off${offHas ? ' <i data-lucide=\"check\" class=\"icon\" style=\"width:11px;height:11px;vertical-align:-1px\"></i>' : ''}</button>`;
 
-  let body;
-  if (activeOp === '__off__') {
-    const has = typeof j.commands?.off === 'string' && j.commands.off.length > 0;
-    body = `
-      <div style="display:flex;align-items:center;gap:12px;">
-        <span style="font-size:12px;color:var(--text-muted);">Comando único pra desligar o aparelho.</span>
-        <div class="cmd-cell ${has ? 'has' : ''}" data-cell="off" style="min-width:120px;">${has ? '<i data-lucide=\"check\" class=\"icon\"></i> Capturado' : '<i data-lucide=\"plus\" class=\"icon\"></i> Vazio'}</div>
-      </div>`;
-  } else {
-    const swingSel = swings.length > 1 && swings[0] !== null
-      ? `<div class="swing-row">Swing: <select id="swing-select">${swings.map((s) => `<option ${s === activeSwing ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select></div>`
-      : '';
-    const head = `<div class="cmd-grid" style="grid-template-columns: 110px repeat(${temps.length}, 1fr);">
-      <div class="ch"></div>${temps.map((t) => `<div class="ch">${t}°</div>`).join('')}
-      ${fans.map((f) => {
-        return `<div class="rh">${esc(f)}</div>` + temps.map((t) => {
-          const code = getClimateCmd(j, activeOp, f, activeSwing, t);
-          const has = !!code;
-          return `<div class="cmd-cell ${has ? 'has' : ''}" data-cell="${esc(activeOp)}|${esc(f)}|${esc(activeSwing||'')}|${t}">${has ? '<i data-lucide=\"check\" class=\"icon\"></i>' : '—'}</div>`;
-        }).join('');
-      }).join('')}
-    </div>`;
-    body = swingSel + `<div class="cmd-grid-scroll">${head}</div>`;
-  }
+  const swingSel = swings.length > 1 && swings[0] !== null
+    ? `<div class="swing-row">Swing: <select id="swing-select">${swings.map((s) => `<option ${s === activeSwing ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select></div>`
+    : '';
+  const head = `<div class="cmd-grid" style="grid-template-columns: 110px repeat(${temps.length}, 1fr);">
+    <div class="ch"></div>${temps.map((t) => `<div class="ch">${t}°</div>`).join('')}
+    ${fans.map((f) => {
+      return `<div class="rh">${esc(f)}</div>` + temps.map((t) => {
+        const code = getClimateCmd(j, activeOp, f, activeSwing, t);
+        const has = !!code;
+        return `<div class="cmd-cell ${has ? 'has' : ''}" data-cell="${esc(activeOp)}|${esc(f)}|${esc(activeSwing||'')}|${t}">${has ? '<i data-lucide=\"check\" class=\"icon\"></i>' : '—'}</div>`;
+      }).join('');
+    }).join('')}
+  </div>`;
+  const body = swingSel + `<div class="cmd-grid-scroll">${head}</div>`;
 
   return `
   <section>
@@ -489,7 +504,10 @@ function setClimateCmd(j, op, fan, swing, temp, value) {
 }
 
 function bindClimate() {
-  document.querySelectorAll('.op-tab').forEach((b) => b.onclick = () => { activeOp = b.dataset.op; renderVisual(); });
+  document.querySelectorAll('.op-tab').forEach((b) => b.onclick = () => {
+    if (b.dataset.op === '__off__') { openCellEditor('off'); return; }
+    activeOp = b.dataset.op; renderVisual();
+  });
   const sw = document.getElementById('swing-select');
   if (sw) sw.onchange = () => { activeSwing = sw.value; renderVisual(); };
   document.querySelectorAll('.cmd-cell').forEach((c) => c.onclick = () => openCellEditor(c.dataset.cell));
@@ -550,8 +568,13 @@ async function openCellEditor(cellKey) {
   }
 
   const emitters = await loadEmitters();
+  const lastEmitter = localStorage.getItem('hc_last_emitter') || '';
   const emitterOptions = emitters.length
-    ? emitters.map((e) => `<option value="${esc(macToDeviceId(e.mac))}" ${e.live === false ? 'disabled' : ''}>${esc(e.name)}${e.live === false ? ' (offline)' : ''}</option>`).join('')
+    ? emitters.map((e) => {
+        const id = macToDeviceId(e.mac);
+        const sel = id === lastEmitter && e.live !== false ? 'selected' : '';
+        return `<option value="${esc(id)}" ${e.live === false ? 'disabled' : ''} ${sel}>${esc(e.name)}${e.live === false ? ' (offline)' : ''}</option>`;
+      }).join('')
     : '<option value="">Nenhum emissor disponível</option>';
 
   const overlay = document.createElement('div');
@@ -588,6 +611,9 @@ async function openCellEditor(cellKey) {
   const close = () => overlay.remove();
   overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
   document.getElementById('cell-cancel').onclick = close;
+  document.getElementById('cell-emitter').addEventListener('change', (e) => {
+    if (e.target.value) localStorage.setItem('hc_last_emitter', e.target.value);
+  });
   const clearBtn = document.getElementById('cell-clear');
   if (clearBtn) clearBtn.onclick = () => {
     writeCellValue(cellKey, '');
@@ -719,20 +745,6 @@ async function del() {
   } catch (e) { toast(e.message, 'err'); }
 }
 
-async function createNew() {
-  const type = prompt('Tipo do dispositivo: climate / media_player / remote', 'climate');
-  if (!type) return;
-  try {
-    const res = await api('api/ir/library', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ device_type: type }),
-    });
-    toast(`Criado #${res.id}`, 'ok');
-    await loadLibrary();
-    await selectItem(res.id);
-  } catch (e) { toast(e.message, 'err'); }
-}
-
 async function uploadFiles(files) {
   let ok = 0, failed = 0;
   let firstId = null;
@@ -753,7 +765,31 @@ async function uploadFiles(files) {
   if (firstId) await selectItem(firstId);
 }
 
+async function syncLibrary() {
+  if (dirty && !confirm('Há alterações não salvas. Atualizar mesmo assim?')) return;
+  const btn = document.getElementById('btn-sync');
+  const icon = btn.querySelector('i');
+  btn.disabled = true;
+  icon.style.animation = 'spin 1s linear infinite';
+  try {
+    const r = await api('api/ir/library/sync', { method: 'POST' });
+    const msg = `${r.imported}/${r.total} arquivos sincronizados${r.errors?.length ? ` (${r.errors.length} erro)` : ''}`;
+    toast(msg, r.errors?.length ? '' : 'ok');
+    if (selectedId && !library.find((c) => c.id === selectedId)) {
+      selectedId = null; parsed = null;
+      document.getElementById('empty').style.display = 'flex';
+      document.getElementById('editor-area').style.display = 'none';
+    }
+    await loadLibrary();
+  } catch (e) { toast(e.message, 'err'); }
+  finally {
+    btn.disabled = false;
+    icon.style.animation = '';
+  }
+}
+
 // ─── Bindings ───
+document.getElementById('btn-sync').onclick = syncLibrary;
 document.getElementById('btn-upload').onclick = () => document.getElementById('file-input').click();
 document.getElementById('file-input').addEventListener('change', async (ev) => {
   const files = Array.from(ev.target.files || []);
@@ -776,7 +812,6 @@ asideEl.addEventListener('drop', async (ev) => {
 });
 
 document.getElementById('search').addEventListener('input', renderList);
-document.getElementById('btn-new').onclick = createNew;
 document.getElementById('btn-save').onclick = save;
 document.getElementById('btn-reset').onclick = reset;
 document.getElementById('btn-delete').onclick = del;

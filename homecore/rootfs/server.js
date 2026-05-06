@@ -158,6 +158,12 @@ app.delete('/api/ir/library/:id', (req, res) => {
   try { ir.deleteCode(req.params.id); res.json({ ok: true }); }
   catch (e) { res.status(400).json({ error: e.message }); }
 });
+app.post('/api/ir/library/sync', async (req, res) => {
+  try {
+    const result = await ir.syncLibraryFromGitHub();
+    res.json({ ok: true, ...result });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
 // Sobrescreve o nome auto-descoberto pelo nome dado no incorporamento (favorites)
 function withFavoriteNames(emitters) {
   return emitters.map((e) => {
