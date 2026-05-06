@@ -1,5 +1,5 @@
 name: HomeCore
-version: "0.2.2"
+version: "0.3.0"
 slug: homecore
 description: Marketplace de automação residencial — Sonoff/Tuya Wi-Fi, Zigbee e IR Broadlink integrados via MQTT Discovery.
 url: https://github.com/willianmagna/HomeCore-AddOn
