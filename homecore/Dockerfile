@@ -1,5 +1,5 @@
-ARG BUILD_FROM
-FROM $BUILD_FROM
+ARG BUILD_FROM=ghcr.io/home-assistant/aarch64-base:3.18
+FROM ${BUILD_FROM}
 
 # Toolchain pra compilar módulos nativos (better-sqlite3) + node + tini
 RUN apk add --no-cache \
