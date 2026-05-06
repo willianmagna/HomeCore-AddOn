@@ -365,12 +365,15 @@ function upsertDevice(device) {
   saveDevices(devices);
   // anexa code_meta pra quem publica discovery já ter tudo
   const meta = listCodeFiles().find((c) => c.id === normalized.code_file);
-  return { ...normalized, code_meta: meta };
+  const result = { ...normalized, code_meta: meta };
+  notify(result);
+  return result;
 }
 
 function removeDevice(id) {
   const devices = loadDevices().filter((d) => d.id !== id);
   saveDevices(devices);
+  notify({ id, removed: true });
 }
 
 function defaultState(type, codeJson) {

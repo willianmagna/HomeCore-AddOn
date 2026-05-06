@@ -235,6 +235,7 @@
         <div id="foot-info"></div>
         <div class="right">
           <button class="btn btn-danger" id="btn-delete"><i data-lucide="trash-2" class="icon"></i>Remover</button>
+          <button class="btn" id="btn-export" style="display:none"><i data-lucide="download" class="icon"></i>Exportar JSON</button>
           <button class="btn" id="btn-reset"><i data-lucide="rotate-ccw" class="icon"></i>Reverter</button>
           <button class="btn btn-primary" id="btn-save"><i data-lucide="save" class="icon"></i>Salvar</button>
         </div>
@@ -369,6 +370,7 @@ function setMode(m) {
     renderVisual();
     validateJson();
   }
+  document.getElementById('btn-export').style.display = m === 'json' ? '' : 'none';
   updateFootInfo();
 }
 
@@ -778,6 +780,22 @@ document.getElementById('btn-new').onclick = createNew;
 document.getElementById('btn-save').onclick = save;
 document.getElementById('btn-reset').onclick = reset;
 document.getElementById('btn-delete').onclick = del;
+document.getElementById('btn-export').onclick = () => {
+  if (!selectedId) return;
+  if (mode === 'json' && !syncFromJsonEditor()) {
+    toast('Corrija o JSON antes de exportar', 'err');
+    return;
+  }
+  const content = JSON.stringify(parsed, null, 2);
+  const blob = new Blob([content], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${selectedId}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(a.href);
+};
 document.querySelectorAll('.mode-tabs button').forEach((b) => b.onclick = () => {
   if (mode === 'json' && b.dataset.mode === 'visual') {
     if (!syncFromJsonEditor()) { toast('Corrija o JSON antes de voltar pra visual', 'err'); return; }

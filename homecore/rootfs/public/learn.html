@@ -302,30 +302,6 @@
     <div id="remote-container"></div>
   </div>
 
-  <!-- ═══ VIEW: Config ═══ -->
-  <div class="view" id="view-config">
-    <section class="card" style="margin-bottom:16px">
-      <div class="card-header">
-        <div>
-          <div class="card-title">Configurações</div>
-          <div class="card-subtitle">Gerencie dispositivos e códigos</div>
-        </div>
-      </div>
-      <div class="card-body">
-        <button class="btn btn-ghost btn-full" onclick="exportCodes()">
-          <i data-lucide="file-down" class="icon"></i>Exportar JSON
-        </button>
-      </div>
-    </section>
-
-    <section class="card">
-      <div class="card-header"><div class="card-title">Códigos salvos</div></div>
-      <div class="card-body">
-        <div id="config-codes-list"></div>
-      </div>
-    </section>
-  </div>
-
   <div class="toast-box" id="toast-box"></div>
 </main>
 
@@ -334,7 +310,6 @@ const HASH_TO_KEY = {
   '#dispositivos': 'emitters',
   '#capturar':     'learn',
   '#controle':     'control',
-  '#config':       'maintenance',
 };
 function activeKeyFromHash() { return HASH_TO_KEY[location.hash] || 'learn'; }
 HomeCore.mountHeader({ active: activeKeyFromHash() });
@@ -362,7 +337,7 @@ window.addEventListener('hashchange', () => {
     const HASH_TO_VIEW = {
         '': 'learn', '#': 'learn',
         '#dispositivos': 'devices',
-        '#capturar': 'learn',  '#controle':  'control', '#config': 'config',
+        '#capturar': 'learn',  '#controle':  'control',
     };
     function setView(view) {
         document.querySelectorAll('.bnav-btn').forEach(b =>
@@ -377,7 +352,6 @@ window.addEventListener('hashchange', () => {
             document.getElementById('learn-mode-tabs').style.display = 'none';
             showNewSmartIR();
         }
-        if (view === 'config')  renderConfig();
     }
     function viewFromHash() {
         return HASH_TO_VIEW[location.hash] || 'learn';
@@ -951,58 +925,6 @@ window.addEventListener('hashchange', () => {
         d.className = 'rc-divider';
         return d;
     }
-
-    // ─── Config View ───
-    function renderConfig() {
-        const list = document.getElementById('config-codes-list');
-        const deviceIds = Object.keys(codes);
-
-        if (!deviceIds.length) {
-            list.innerHTML = '<p class="text-3 text-sm">Nenhum codigo salvo ainda.</p>';
-            return;
-        }
-
-        let html = '';
-        deviceIds.forEach(id => {
-            const dev = devices.find(d => d.mac.replace(/[: ]/g,'').toLowerCase() === id);
-            const devName = dev ? (dev.customName || dev.name) : id.slice(0,8);
-            const botoes = codes[id].botoes || {};
-            const count = Object.keys(botoes).length;
-
-            html += `<div class="device-item" style="cursor:default;flex-wrap:wrap">
-                <div class="device-icon"><i data-lucide="cast"></i></div>
-                <div class="device-info">
-                    <div class="device-name">${devName}</div>
-                    <div class="device-detail">${count} botao(es) salvos</div>
-                </div>
-            </div>`;
-
-            Object.keys(botoes).forEach(nome => {
-                html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:0.4rem 0.8rem;border-bottom:1px solid var(--border)">
-                    <span class="text-sm">${nome} <span class="text-3">${botoes[nome].grupo ? '('+botoes[nome].grupo+')' : ''}</span></span>
-                    <button class="btn btn-danger btn-sm" onclick="deleteCode('${id}','${nome}')">Excluir</button>
-                </div>`;
-            });
-        });
-
-        list.innerHTML = html;
-    }
-
-    window.deleteCode = async function(deviceId, botao) {
-        if (!confirm('Excluir o botao "' + botao + '"?')) return;
-        await api('DELETE', '/api/codes/' + deviceId + '/' + encodeURIComponent(botao));
-        await loadCodes();
-        renderConfig();
-        toast('Botao removido', 'ok');
-    };
-
-    window.exportCodes = function() {
-        const blob = new Blob([JSON.stringify(codes, null, 2)], { type: 'application/json' });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = 'homecore_codes.json';
-        a.click();
-    };
 
     // ─── SmartIR ───
 
@@ -1752,7 +1674,7 @@ window.addEventListener('hashchange', () => {
         renderDevices();
         renderFavorites();
 
-        // View inicial vinda da hash (#dispositivos | #capturar | #controle | #config)
+        // View inicial vinda da hash (#dispositivos | #capturar | #controle)
         setView(viewFromHash());
 
         // Auto-discover if no devices

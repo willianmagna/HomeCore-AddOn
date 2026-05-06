@@ -120,9 +120,8 @@
       { key: 'zigbee-pair',    href: 'zigbee-pair.html', icon: 'link',    label: 'Parear' },
     ],
     library: [
-      { key: 'library',     href: 'library.html',        icon: 'library',        label: 'Biblioteca' },
-      { key: 'learn',       href: 'learn.html#capturar', icon: 'graduation-cap', label: 'Capturar' },
-      { key: 'maintenance', href: 'learn.html#config',   icon: 'wrench',         label: 'Manutenção' },
+      { key: 'library', href: 'library.html',        icon: 'library',        label: 'Biblioteca' },
+      { key: 'learn',   href: 'learn.html#capturar', icon: 'graduation-cap', label: 'Capturar' },
     ],
   };
 

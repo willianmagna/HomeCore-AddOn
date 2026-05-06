@@ -178,6 +178,10 @@ function start() {
 
   ir.onDeviceChange((dev) => {
     try {
+      if (dev.removed) {
+        unpublish(dev.id);
+        return;
+      }
       // garante que code_meta está presente (listeners recebem dev "cru")
       const enriched = ir.getDevices().find((d) => d.id === dev.id) || dev;
       publishDiscovery(enriched);
