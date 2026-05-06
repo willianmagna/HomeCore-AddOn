@@ -95,7 +95,8 @@
         </div>
       </section>
 
-      <section class="card" id="sir-new-form" style="display:none">
+      <div id="sir-new-form" style="display:none">
+      <section class="card">
         <div class="card-header"><div class="card-title">Novo arquivo SmartIR</div></div>
         <div class="card-body">
           <div class="form-group">
@@ -170,12 +171,14 @@
             </div>
           </div>
 
-          <div class="flex-row mt-1">
-            <button class="btn btn-ghost flex-1" onclick="cancelNewSmartIR()">Cancelar</button>
-            <button class="btn btn-primary flex-1" onclick="createSmartIR()">Criar arquivo</button>
-          </div>
         </div>
       </section>
+
+      <div class="sir-form-actions">
+        <button class="btn btn-ghost btn-sm btn-pill" onclick="cancelNewSmartIR()">Cancelar</button>
+        <button class="btn btn-primary btn-sm btn-pill" onclick="createSmartIR()">Criar arquivo</button>
+      </div>
+      </div>
 
       <section class="card" id="sir-capture" style="display:none">
         <div class="card-header">
@@ -220,22 +223,21 @@
           </div>
 
           <div id="wiz-selectors" class="mt-1"></div>
-          <div class="wiz-selection-summary" id="wiz-summary"></div>
 
           <div id="wiz-capture-feedback" class="mt-1" style="display:none">
             <div class="learn-status" id="wiz-capture-feedback-inner"></div>
           </div>
 
-          <div class="flex-row mt-1">
+          <div class="flex-row wiz-capture-row">
             <button class="btn btn-primary flex-1" id="wiz-btn-capture" onclick="wizardCapture()">
-              <i data-lucide="zap" class="icon"></i>Capturar IR
+              <i data-lucide="zap" class="icon"></i><span id="wiz-btn-capture-label">Capturar IR</span>
             </button>
             <button class="btn btn-ghost" id="wiz-btn-test" onclick="wizardTest()" disabled title="Envia o último código capturado">
-              <i data-lucide="play" class="icon"></i>Testar
+              <i data-lucide="play" class="icon"></i><span id="wiz-btn-test-label">Testar</span>
             </button>
           </div>
 
-          <div class="text-sm mt-1" id="wiz-last-captured" style="display:none">
+          <div class="text-sm" id="wiz-last-captured" style="display:none">
             <span class="text-3">Último:</span>
             <span id="wiz-last-label" class="text-2"></span>
             <i data-lucide="check" style="width:14px;height:14px;color:var(--ok);vertical-align:-2px"></i>
@@ -243,14 +245,8 @@
 
           <div class="wizard-mode-status mt-1" id="wiz-mode-status"></div>
 
-          <div class="mt-1">
-            <button class="btn btn-ghost btn-full btn-sm" onclick="downloadSmartIR()">
-              <i data-lucide="download" class="icon"></i>Baixar JSON SmartIR
-            </button>
-          </div>
-
           <details class="mt-1" style="background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 14px;">
-            <summary style="cursor:pointer;font-weight:600;font-size:13px;color:var(--text);">Como capturar os códigos IR</summary>
+            <summary style="cursor:pointer;font-weight:600;font-size:13px;color:var(--text);">Instruções de Uso</summary>
             <div class="text-sm text-2 mt-1" style="line-height:1.6">
               <p><strong>Ar condicionado (Climate):</strong> cada código IR envia o estado completo do aparelho (modo + ventilação + temperatura) num único sinal. Não há "ligar" separado.</p>
               <ol style="margin:8px 0 8px 18px">
@@ -261,6 +257,13 @@
               </ol>
               <p><strong>TV / Media Player:</strong> cada comando é independente (ligar, volume, canal). Selecione, aponte, pressione.</p>
               <p class="text-3" style="margin-top:8px"><strong>Dica:</strong> as combinações podem ser capturadas em qualquer ordem.</p>
+              <p style="margin-top:10px"><strong>Atalhos de teclado:</strong></p>
+              <ul style="margin:4px 0 0 18px">
+                <li><kbd>Espaço</kbd> — capturar a combinação selecionada</li>
+                <li><kbd>→</kbd> — próxima combinação</li>
+                <li><kbd>←</kbd> — combinação anterior</li>
+              </ul>
+              <p class="text-3" style="margin-top:6px">Os atalhos funcionam só nesta tela e ignoram quando há campo de texto em foco.</p>
             </div>
           </details>
         </div>
@@ -314,8 +317,28 @@ const HASH_TO_KEY = {
 };
 function activeKeyFromHash() { return HASH_TO_KEY[location.hash] || 'learn'; }
 HomeCore.mountHeader({ active: activeKeyFromHash() });
+
+// Injeta botao "Baixar JSON" a direita da subnav (visivel so quando ha SmartIR ativo).
+function attachLearnSubnavActions() {
+  const subnav = document.querySelector('nav.page-subnav');
+  if (!subnav || subnav.querySelector('.subnav-actions')) return;
+  const actions = document.createElement('div');
+  actions.className = 'subnav-actions';
+  // Mantem o botao visivel se ja havia SmartIR ativo antes do remount da subnav.
+  const cap = document.getElementById('sir-capture');
+  const wasVisible = cap && cap.style.display !== 'none';
+  actions.innerHTML = `
+    <button class="btn btn-ghost btn-sm" id="sir-btn-download" onclick="downloadSmartIR()" style="display:${wasVisible ? '' : 'none'}">
+      <i data-lucide="download" class="icon"></i>Baixar JSON
+    </button>
+  `;
+  subnav.appendChild(actions);
+  HomeCore.refreshIcons();
+}
+attachLearnSubnavActions();
 window.addEventListener('hashchange', () => {
   HomeCore.mountHeader({ active: activeKeyFromHash() });
+  attachLearnSubnavActions();
 });
 </script>
 
@@ -349,9 +372,19 @@ window.addEventListener('hashchange', () => {
         if (view === 'control') renderControl();
         if (view === 'learn') {
             populateLearnDevices();
-            document.getElementById('sir-step1').style.display = 'none';
-            document.getElementById('learn-mode-tabs').style.display = 'none';
-            showNewSmartIR();
+            const editFile = new URLSearchParams(location.search).get('edit');
+            if (editFile) {
+                // Vindo da biblioteca via "Editar": pula o form de novo arquivo,
+                // carrega a lista e abre o arquivo direto no wizard.
+                document.getElementById('sir-step1').style.display = 'none';
+                document.getElementById('learn-mode-tabs').style.display = 'none';
+                document.getElementById('sir-new-form').style.display = 'none';
+                loadSmartIRFiles().then(() => selectSmartIR(editFile));
+            } else {
+                document.getElementById('sir-step1').style.display = 'none';
+                document.getElementById('learn-mode-tabs').style.display = 'none';
+                showNewSmartIR();
+            }
         }
     }
     function viewFromHash() {
@@ -985,6 +1018,8 @@ window.addEventListener('hashchange', () => {
         if (activeSmartIR && activeSmartIR.filename === filename) {
             activeSmartIR = null;
             document.getElementById('sir-capture').style.display = 'none';
+            const dlBtn = document.getElementById('sir-btn-download');
+            if (dlBtn) dlBtn.style.display = 'none';
         }
         await loadSmartIRFiles();
         toast('Arquivo removido', 'ok');
@@ -1195,6 +1230,8 @@ window.addEventListener('hashchange', () => {
 
     function showSmartIRCapture() {
         if (!activeSmartIR) return;
+        const dlBtn = document.getElementById('sir-btn-download');
+        if (dlBtn) dlBtn.style.display = '';
         const cap = document.getElementById('sir-capture');
         cap.style.display = 'block';
 
@@ -1414,27 +1451,19 @@ window.addEventListener('hashchange', () => {
     }
 
     function renderSummary(commands) {
-        const el = document.getElementById('wiz-summary');
         const path = getCurrentPath();
         const capBtn = document.getElementById('wiz-btn-capture');
         const testBtn = document.getElementById('wiz-btn-test');
 
         if (!path) {
-            el.innerHTML = '<span class="text-3">Selecione as opcoes acima</span>';
             capBtn.disabled = true;
             testBtn.disabled = true;
             return;
         }
 
-        const label = getCurrentLabel();
         const isCap = isPathCaptured(path, commands);
-        const badge = isCap
-            ? '<span class="captured-badge yes">ja capturado</span>'
-            : '<span class="captured-badge no">pendente</span>';
-
-        el.innerHTML = label + ' ' + badge;
         capBtn.disabled = false;
-        capBtn.textContent = isCap ? 'Recapturar IR' : 'Capturar IR';
+        document.getElementById('wiz-btn-capture-label').textContent = isCap ? 'Recapturar IR' : 'Capturar IR';
         testBtn.disabled = !isCap;
     }
 
@@ -1501,6 +1530,75 @@ window.addEventListener('hashchange', () => {
         renderWizard();
         haptic(10);
     };
+
+    // ─── Wizard: Keyboard shortcuts ───
+
+    function moveCombo(delta) {
+        if (!activeSmartIR || !wizardCombinations.length) return;
+        const isClimate = activeSmartIR.type === 'climate';
+        // Climate inclui OFF como item virtual no inicio (indice 0); combinacoes seguem.
+        const offset = isClimate ? 1 : 0;
+        const total = wizardCombinations.length + offset;
+
+        let cur = -1;
+        if (wizIsOff) cur = 0;
+        else {
+            const path = getCurrentPath();
+            if (path) {
+                const idx = wizardCombinations.findIndex(c =>
+                    c.path.length === path.length && c.path.every((p, i) => p === path[i]));
+                if (idx >= 0) cur = idx + offset;
+            }
+        }
+        if (cur < 0) cur = 0;
+
+        let next = ((cur + delta) % total + total) % total;
+
+        if (isClimate && next === 0) {
+            wizIsOff = true;
+        } else {
+            wizIsOff = false;
+            const combo = wizardCombinations[next - offset];
+            if (isClimate) {
+                wizSelection.mode = combo.path[0];
+                wizSelection.fan = combo.path[1];
+                if (combo.path.length === 4) {
+                    wizSelection.swing = combo.path[2];
+                    wizSelection.temp = combo.path[3];
+                } else {
+                    wizSelection.swing = null;
+                    wizSelection.temp = combo.path[2];
+                }
+            } else {
+                wizSelection.command = combo.path[0] === 'sources' ? 'src:' + combo.path[1] : combo.path[0];
+            }
+        }
+        renderWizard();
+        haptic(8);
+    }
+
+    document.addEventListener('keydown', (e) => {
+        // So opera quando o wizard de captura esta visivel
+        const cap = document.getElementById('sir-capture');
+        if (!cap || cap.style.display === 'none') return;
+        // Ignora se foco esta em campo de texto
+        const t = (e.target && e.target.tagName) || '';
+        if (t === 'INPUT' || t === 'TEXTAREA' || t === 'SELECT') return;
+        // Ignora combinacoes com modificadores (deixa atalhos do navegador passarem)
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+        if (e.key === ' ' || e.code === 'Space') {
+            e.preventDefault();
+            const btn = document.getElementById('wiz-btn-capture');
+            if (btn && !btn.disabled) btn.click();
+        } else if (e.key === 'ArrowRight') {
+            e.preventDefault();
+            moveCombo(1);
+        } else if (e.key === 'ArrowLeft') {
+            e.preventDefault();
+            moveCombo(-1);
+        }
+    });
 
     // ─── Wizard: Capture ───
 
@@ -1630,8 +1728,9 @@ window.addEventListener('hashchange', () => {
                     if (!deviceId) { toast('Busque dispositivos primeiro', 'err'); return; }
 
                     const btn = document.getElementById('wiz-btn-test');
+                    const lbl = document.getElementById('wiz-btn-test-label');
                     btn.disabled = true;
-                    btn.textContent = 'Enviando...';
+                    lbl.textContent = 'Enviando...';
 
                     api('POST', '/api/send', { deviceId, b64: obj[key] }).then(res => {
                         if (res.ok) {
@@ -1641,11 +1740,11 @@ window.addEventListener('hashchange', () => {
                             toast(res.erro || 'Erro ao enviar', 'err');
                         }
                         btn.disabled = false;
-                        btn.textContent = 'Testar';
+                        lbl.textContent = 'Testar';
                     }).catch(() => {
                         toast('Erro ao enviar', 'err');
                         btn.disabled = false;
-                        btn.textContent = 'Testar';
+                        lbl.textContent = 'Testar';
                     });
                     return;
                 }

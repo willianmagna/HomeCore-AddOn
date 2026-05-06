@@ -246,14 +246,135 @@
   margin-top: 10px; min-height: 38px;
   display: flex; align-items: center;
 }
+/* Lista de progresso por modo (climate) ou comandos (media_player) */
 .wizard-mode-status {
+  display: flex; flex-direction: column; gap: 8px;
+  margin-top: 4px;
+}
+.wiz-mode-row {
+  display: grid; grid-template-columns: 90px 1fr 60px;
+  align-items: center; gap: 12px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: var(--r-md); padding: 8px 12px;
+}
+.wiz-mode-name {
+  font-size: 12px; font-weight: 600; color: var(--text);
+  text-transform: capitalize;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.wiz-mode-bar {
+  height: 6px; background: var(--surface-3); border-radius: 999px; overflow: hidden;
+}
+.wiz-mode-bar-fill {
+  height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-strong));
+  border-radius: 999px; transition: width 0.25s;
+}
+.wiz-mode-count {
+  font-size: 11px; color: var(--text-muted);
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  text-align: right;
+}
+
+/* Selectors do wizard (Modo, Ventilacao, Swing, Temperatura, Comandos, Fontes) */
+.wiz-selector { margin-bottom: 12px; }
+.wiz-selector:last-child { margin-bottom: 0; }
+.wiz-selector-label {
+  font-size: 11px; font-weight: 600;
+  color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em;
+  margin-bottom: 6px;
+}
+.wiz-selector-btns {
   display: flex; flex-wrap: wrap; gap: 6px;
 }
+.wiz-sel-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px; border-radius: var(--r-pill);
+  background: var(--surface-2); border: 1px solid var(--border);
+  color: var(--text-muted); font-size: 12px; font-weight: 500;
+  font-family: inherit; cursor: pointer;
+  transition: all 0.12s; user-select: none;
+  min-width: 44px; justify-content: center;
+}
+.wiz-sel-btn:hover { background: var(--surface-3); color: var(--text); border-color: var(--border-strong); }
+.wiz-sel-btn.captured {
+  background: color-mix(in srgb, var(--ok) 8%, var(--surface-2));
+  border-color: color-mix(in srgb, var(--ok) 35%, var(--border));
+  color: var(--ok);
+}
+.wiz-sel-btn.selected {
+  background: var(--accent-weak); border-color: var(--accent);
+  color: var(--accent); font-weight: 600;
+}
+.wiz-sel-btn.captured.selected {
+  background: var(--accent); border-color: var(--accent); color: white;
+}
+
+/* Badge "ja capturado" / "pendente" no summary do wizard */
 .captured-badge {
   display: inline-flex; align-items: center; gap: 4px;
   padding: 4px 9px; border-radius: 999px;
   background: var(--ok-weak); color: var(--ok);
-  font-size: 11px; font-weight: 600;
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.04em; margin-left: 8px;
+}
+.captured-badge.yes { background: var(--ok-weak); color: var(--ok); }
+.captured-badge.no {
+  background: color-mix(in srgb, var(--warn) 14%, transparent);
+  color: var(--warn);
+}
+
+/* Chips de fontes adicionadas no media_player */
+.source-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 4px 4px 10px; border-radius: 999px;
+  background: var(--accent-weak); color: var(--accent);
+  font-size: 12px; font-weight: 500;
+}
+.source-chip button {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; padding: 0;
+  border: none; border-radius: 50%;
+  background: transparent; color: inherit; cursor: pointer;
+  font-size: 14px; line-height: 1; font-family: inherit;
+  transition: background-color 0.12s;
+}
+.source-chip button:hover { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+
+/* Highlight do item ativo na lista de SmartIR (JS usa .active, nao .selected) */
+.sir-file-item.active { background: var(--accent-weak); border-color: var(--accent); }
+
+/* btn-icon.danger: indica destrutivo desde o estado normal */
+.btn-icon.danger {
+  color: var(--err);
+  border-color: color-mix(in srgb, var(--err) 25%, var(--border));
+}
+
+/* Acoes do form "Novo arquivo SmartIR": pills compactos a direita */
+.sir-form-actions {
+  display: flex; justify-content: flex-end; gap: 8px;
+  margin-top: 12px;
+}
+.btn-pill { border-radius: 999px; }
+
+/* Linha do botao "Capturar IR" do wizard: ar acima e abaixo */
+.wiz-capture-row { margin: 22px 0; }
+
+/* Tecla de atalho nas instrucoes */
+kbd {
+  display: inline-block; padding: 1px 6px; min-width: 18px;
+  background: var(--surface-3); border: 1px solid var(--border-strong);
+  border-bottom-width: 2px; border-radius: 4px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11px; color: var(--text); text-align: center;
+  vertical-align: 1px;
+}
+
+/* Subnav: empurra acoes contextuais (ex: "Baixar JSON") pra direita */
+nav.page-subnav { display: flex !important; width: 100%; }
+nav.page-subnav .subnav-actions {
+  margin-left: auto;
+  display: flex; align-items: center; gap: 8px;
+  padding-bottom: 6px;
 }
 
 .learn-status {

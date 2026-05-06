@@ -538,4 +538,5 @@ module.exports = {
   sendCommand: sendCommandNotify,
   onDeviceChange,
   syncLibraryFromGitHub,
+  nextCodeId,
 };

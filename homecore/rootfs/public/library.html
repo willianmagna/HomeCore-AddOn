@@ -52,6 +52,10 @@
   .code-item:hover { background: var(--surface-2); }
   .code-item.selected { background: var(--accent-weak); }
   .code-item .code-item-icon { width: 18px; height: 18px; color: var(--text-muted); flex-shrink: 0; }
+  .code-item .code-item-localcap {
+    width: 14px; height: 14px; color: var(--accent); flex-shrink: 0;
+    align-self: flex-start; margin-top: 2px;
+  }
   .code-item .info { flex: 1; min-width: 0; }
   .code-item .title {
     font-weight: 500; font-size: 13px; margin-bottom: 3px; color: var(--text);
@@ -64,7 +68,9 @@
     padding: 14px 22px; display: flex; align-items: center; gap: 12px;
     border-bottom: 1px solid var(--border);
   }
-  .editor-head h2 { margin: 0; font-size: 15px; flex: 1; font-weight: 600; letter-spacing: -0.01em; }
+  .editor-head .file-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+  .editor-head h2 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -0.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .editor-head .meta { font-size: 11px; color: var(--text-muted); display: flex; gap: 8px; align-items: center; }
 
   .mode-tabs { display: inline-flex; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-md); padding: 3px; }
   .mode-tabs button { padding: 5px 12px; border-radius: calc(var(--r-md) - 3px); background: transparent; border: none; cursor: pointer; color: var(--text-muted); font-size: 12px; font-weight: 500; font-family: inherit; }
@@ -222,15 +228,21 @@
     </div>
     <div id="editor-area" style="display: none; flex-direction: column; height: 100%;">
       <div class="editor-head">
-        <h2 id="file-name"></h2>
+        <div class="file-info">
+          <h2 id="file-name"></h2>
+          <div class="meta" id="file-meta"></div>
+        </div>
+        <button class="btn btn-ghost btn-sm" id="btn-edit-wizard" style="display:none" title="Abrir no wizard de captura">
+          <i data-lucide="zap" class="icon"></i>Editar
+        </button>
+        <span class="status-chip" id="valid-chip" style="display:none">
+          <i data-lucide="check" class="icon" style="width:12px;height:12px;"></i>
+          <span id="valid-text">JSON válido</span>
+        </span>
         <div class="mode-tabs">
           <button id="mode-visual" class="active" data-mode="visual">Visual</button>
           <button id="mode-json" data-mode="json">JSON</button>
         </div>
-        <span class="status-chip" id="valid-chip">
-          <i data-lucide="check" class="icon" style="width:12px;height:12px;"></i>
-          <span id="valid-text">JSON válido</span>
-        </span>
       </div>
       <div class="editor-wrap">
         <div id="visual-pane" class="visual"></div>
@@ -341,7 +353,7 @@ function renderList() {
     const iconMap = { climate: 'thermometer-snowflake', media_player: 'tv', remote: 'radio' };
     const icon = iconMap[c.device_type] || 'file-code-2';
     const localBadge = c.source === 'local'
-      ? '<i data-lucide="graduation-cap" class="icon" style="width:13px;height:13px;color:var(--accent)" title="Capturado localmente"></i>'
+      ? '<i data-lucide="graduation-cap" class="icon code-item-localcap" title="Capturado localmente"></i>'
       : '';
     return `
     <div class="code-item ${c.id === selectedId ? 'selected' : ''}" data-id="${esc(c.id)}">
@@ -351,9 +363,9 @@ function renderList() {
         <div class="meta">
           <span class="badge ${esc(c.device_type)}">${esc(c.device_type)}</span>
           <span>#${esc(c.id)}</span>
-          ${localBadge}
         </div>
       </div>
+      ${localBadge}
     </div>`;
   }).join('');
   el.querySelectorAll('.code-item').forEach((e) => {
@@ -371,12 +383,21 @@ async function selectItem(id) {
     originalContent = typeof raw === 'string' ? raw : JSON.stringify(raw, null, 2);
     document.getElementById('empty').style.display = 'none';
     document.getElementById('editor-area').style.display = 'flex';
-    document.getElementById('file-name').textContent = `${id}.json`;
+    const item = library.find((c) => c.id === id);
+    const models = (item?.models || []).filter(Boolean).join(', ');
+    const brand = item?.manufacturer || 'sem fabricante';
+    const title = models ? `[${brand}] ${models}` : `[${brand}]`;
+    document.getElementById('file-name').textContent = title;
+    document.getElementById('file-meta').innerHTML = item
+      ? `<span class="badge ${esc(item.device_type)}">${esc(item.device_type)}</span><span>#${esc(item.id)}</span>`
+      : '';
     document.getElementById('editor').value = originalContent;
     parsed = JSON.parse(originalContent);
     activeOp = null; activeSwing = null;
     dirty = false;
     setMode(mode);
+    // Botao "Editar no wizard": so para itens locais (capturados manualmente, ID >= 9000)
+    document.getElementById('btn-edit-wizard').style.display = item && item.source === 'local' ? '' : 'none';
   } catch (e) { toast(e.message, 'err'); }
 }
 
@@ -396,6 +417,7 @@ function setMode(m) {
     validateJson();
   }
   document.getElementById('btn-export').style.display = m === 'json' ? '' : 'none';
+  document.getElementById('valid-chip').style.display = m === 'json' ? '' : 'none';
   updateFootInfo();
 }
 
@@ -791,6 +813,11 @@ async function syncLibrary() {
 
 // ─── Bindings ───
 document.getElementById('btn-sync').onclick = syncLibrary;
+document.getElementById('btn-edit-wizard').onclick = () => {
+  if (!selectedId) return;
+  if (dirty && !confirm('Alterações não salvas serão descartadas. Continuar?')) return;
+  location.href = `learn.html?edit=${encodeURIComponent(selectedId)}.json#capturar`;
+};
 document.getElementById('btn-upload').onclick = () => document.getElementById('file-input').click();
 document.getElementById('file-input').addEventListener('change', async (ev) => {
   const files = Array.from(ev.target.files || []);

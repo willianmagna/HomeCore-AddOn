@@ -754,11 +754,9 @@ app.post('/api/smartir', (req, res) => {
   try {
     const { type } = req.body;
 
-    // Gera filename incremental
-    const existing = fs.readdirSync(SMARTIR_DIR).filter(f => f.endsWith('.json'));
-    const nums = existing.map(f => parseInt(f.replace('.json', ''), 10)).filter(n => !isNaN(n));
-    const nextNum = nums.length ? Math.max(...nums) + 1 : 1000;
-    const filename = nextNum + '.json';
+    // Capturas manuais usam o range 9000+ (definido em lib/ir.js).
+    // O range 1000-8999 e reservado pra biblioteca sincronizada do GitHub.
+    const filename = ir.nextCodeId() + '.json';
 
     let data;
     if (type === 'climate') {
